@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AllRecurringView: View {
     @Environment(\.managedObjectContext) private var ctx
+    @AppStorage("currencyCode") private var currencyCode = "USD"
 
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\.amount)],
@@ -33,7 +34,7 @@ struct AllRecurringView: View {
                             Text("Monthly committed expenses")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text(totalMonthlyExpenses.asCurrency(code: "USD"))
+                            Text(totalMonthlyExpenses.asCurrency(code: currencyCode))
                                 .font(Theme.monoSubhead())
                                 .foregroundStyle(.ledgerNegative)
                         }
@@ -42,7 +43,7 @@ struct AllRecurringView: View {
                             Text("Monthly income")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
-                            Text(totalMonthlyIncome.asCurrency(code: "USD"))
+                            Text(totalMonthlyIncome.asCurrency(code: currencyCode))
                                 .font(Theme.monoSubhead())
                                 .foregroundStyle(.ledgerPositive)
                         }
@@ -126,10 +127,10 @@ struct AllRecurringView: View {
             Spacer()
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text(abs(rule.amount).asCurrency(code: rule.account?.wrappedCurrency ?? "USD"))
+                Text(abs(rule.amount).asCurrency(code: currencyCode))
                     .font(Theme.monoCaption())
                     .foregroundStyle(rule.amount < 0 ? Color.ledgerNegative : Color.ledgerPositive)
-                Text("~\(monthlyEquivalent(of: rule).asCurrency(code: rule.account?.wrappedCurrency ?? "USD"))/mo")
+                Text("~\(monthlyEquivalent(of: rule).asCurrency(code: currencyCode))/mo")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
             }

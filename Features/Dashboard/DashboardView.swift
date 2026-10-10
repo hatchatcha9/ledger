@@ -76,6 +76,7 @@ struct DashboardView: View {
 
     @State private var selectedRange: TimeRange = .thirtyDays
     @State private var showingChat = false
+    @State private var showingAddAccount = false
     @AppStorage("currencyCode")         private var currencyCode  = "USD"
     @AppStorage("netWorthGoalEnabled")  private var goalEnabled   = false
     @AppStorage("netWorthGoalAmount")   private var goalAmount: Double = 0
@@ -95,6 +96,10 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Theme.s16) {
+                    if accounts.isEmpty {
+                        emptyStateCard
+                    }
+
                     HStack(spacing: Theme.s12) {
                         StatTile(
                             label: "Net Worth",
@@ -208,6 +213,10 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingChat) {
             ChatView(viewModel: chatVM)
+        }
+        .sheet(isPresented: $showingAddAccount) {
+            AddEditAccountView()
+                .environment(\.managedObjectContext, ctx)
         }
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
@@ -1149,6 +1158,35 @@ struct DashboardView: View {
             .padding(Theme.s16)
             .background(Color.ledgerSurface.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.radiusM))
         }
+    }
+
+    // MARK: - Empty state card (shown when no accounts exist)
+
+    private var emptyStateCard: some View {
+        Button { showingAddAccount = true } label: {
+            HStack(spacing: Theme.s16) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color.ledgerAccent)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Add your first account")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("Track checking, savings, investments, and crypto in one place.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Month label helper for drill-through

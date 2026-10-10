@@ -52,6 +52,7 @@ final class ChatViewModel: ObservableObject {
         guard !trimmed.isEmpty, !isLoading else { return }
 
         messages.append(ChatMessage(role: "user", text: trimmed))
+        incrementDailyCount()
         isLoading    = true
         errorMessage = nil
 
@@ -66,7 +67,6 @@ final class ChatViewModel: ObservableObject {
                 system:   systemPrompt
             )
             messages.append(ChatMessage(role: "assistant", text: reply))
-            incrementDailyCount()
         } catch {
             messages.removeLast()   // remove the user message that didn't go through
             errorMessage = error.localizedDescription

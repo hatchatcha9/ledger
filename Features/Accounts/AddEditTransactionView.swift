@@ -95,7 +95,6 @@ struct AddEditTransactionView: View {
                     DatePicker(
                         "Date",
                         selection: $date,
-                        in: ...Date(),          // can't log future transactions
                         displayedComponents: [.date]
                     )
 
