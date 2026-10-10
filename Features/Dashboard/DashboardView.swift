@@ -1019,6 +1019,13 @@ struct DashboardView: View {
 
     // MARK: - FI/RE card
 
+    private var hasEnoughFireData: Bool {
+        guard let oldest = allTransactions.first(where: { $0.date != nil })?.date,
+              let threshold = Calendar.current.date(byAdding: .month, value: -3, to: .now)
+        else { return false }
+        return oldest <= threshold
+    }
+
     private var annualExpenses: Double {
         let cal = Calendar.current
         guard let yearAgo = cal.date(byAdding: .year, value: -1, to: .now) else { return 0 }
@@ -1039,7 +1046,7 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var fireCard: some View {
-        if annualExpenses > 0 {
+        if hasEnoughFireData && annualExpenses > 0 {
             VStack(alignment: .leading, spacing: Theme.s12) {
                 HStack {
                     Label("FI/RE Number", systemImage: "flame.fill")

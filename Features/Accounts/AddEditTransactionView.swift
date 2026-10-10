@@ -16,6 +16,7 @@ struct AddEditTransactionView: View {
     @State private var notes = ""
     @State private var splits: [TransactionSplit] = []
     @State private var showingSplitEditor = false
+    @State private var showingLargeAmountAlert = false
     @FocusState private var amountFocused: Bool
 
     private var isSplit: Bool { !splits.isEmpty }
@@ -34,6 +35,24 @@ struct AddEditTransactionView: View {
     private var canSave: Bool {
         guard let v = parsedAmount else { return false }
         return v > 0 && (splits.isEmpty || splitsBalanced)
+    }
+
+    // Average absolute amount for the selected category over the last 3 months.
+    private var recentCategoryAverage: Double? {
+        guard let threeMonthsAgo = Calendar.current.date(byAdding: .month, value: -3, to: .now)
+        else { return nil }
+        let matching = account.transactionsArray
+            .filter {
+                $0.transactionCategory == category &&
+                ($0.date ?? .distantPast) >= threeMonthsAgo
+            }
+        guard matching.count >= 3 else { return nil }
+        return matching.reduce(0) { $0 + abs($1.amount) } / Double(matching.count)
+    }
+
+    private var isLargeAmount: Bool {
+        guard let entered = parsedAmount, let avg = recentCategoryAverage else { return false }
+        return entered >= avg * 10
     }
 
     var body: some View {
@@ -140,9 +159,15 @@ struct AddEditTransactionView: View {
                     Button("Cancel") { dismiss() }
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: saveTransaction)
-                        .fontWeight(.semibold)
-                        .disabled(!canSave)
+                    Button("Save") {
+                        if isLargeAmount && !isEditing {
+                            showingLargeAmountAlert = true
+                        } else {
+                            saveTransaction()
+                        }
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(!canSave)
                 }
                 ToolbarItemGroup(placement: .keyboard) {
                     Spacer()
@@ -156,6 +181,14 @@ struct AddEditTransactionView: View {
                 currencyCode: account.wrappedCurrency,
                 splits: $splits
             )
+        }
+        .alert("Unusually Large Amount", isPresented: $showingLargeAmountAlert) {
+            Button("Save Anyway", role: .destructive) { saveTransaction() }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            if let entered = parsedAmount, let avg = recentCategoryAverage {
+                Text("\(entered.asCurrency(code: account.wrappedCurrency)) is more than 10× your recent average of \(avg.asCurrency(code: account.wrappedCurrency)) for \(category.displayName). Double-check before saving.")
+            }
         }
         .onAppear {
             preloadFields()

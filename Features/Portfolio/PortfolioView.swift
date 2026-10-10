@@ -22,9 +22,10 @@ struct PortfolioView: View {
     ) private var accounts: FetchedResults<Account>
 
     @AppStorage("currencyCode") private var currencyCode = "USD"
-    @State private var showingAddWatchlist  = false
-    @State private var showingAddAsset      = false
+    @State private var showingAddWatchlist   = false
+    @State private var showingAddAsset       = false
     @State private var quickAddAccount: Account? = nil
+    @State private var editingWatchlistItem: WatchlistItem? = nil
 
     // MARK: - Computed totals
 
@@ -156,6 +157,8 @@ struct PortfolioView: View {
                                 currencyCode: currencyCode,
                                 isLoading:    priceService.isLoading
                             )
+                            .contentShape(Rectangle())
+                            .onTapGesture { editingWatchlistItem = item }
                         }
                         .onDelete(perform: deleteWatchlistItems)
                     }
@@ -198,6 +201,10 @@ struct PortfolioView: View {
             }
             .sheet(isPresented: $showingAddWatchlist) {
                 AddWatchlistItemView()
+                    .environment(\.managedObjectContext, ctx)
+            }
+            .sheet(item: $editingWatchlistItem) { item in
+                EditWatchlistItemView(item: item)
                     .environment(\.managedObjectContext, ctx)
             }
             .sheet(isPresented: $showingAddAsset) {
