@@ -3,6 +3,7 @@ import CoreData
 
 struct AccountsView: View {
     @Environment(\.managedObjectContext) private var ctx
+    @EnvironmentObject private var prices: PriceService
 
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\.createdAt)],
@@ -12,9 +13,9 @@ struct AccountsView: View {
     @State private var showingAddAccount  = false
     @State private var showingTransfer    = false
 
-    // Net worth = sum of all account balances.
+    // Convert each account to USD before summing so multi-currency totals are correct.
     private var netWorth: Double {
-        accounts.reduce(0) { $0 + $1.balance }
+        accounts.reduce(0) { $0 + prices.usdValue(of: $1.balance, currency: $1.wrappedCurrency) }
     }
 
     var body: some View {

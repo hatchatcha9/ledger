@@ -68,6 +68,8 @@ struct DashboardView: View {
         animation: .default
     ) private var journalEntries: FetchedResults<JournalEntry>
 
+    @EnvironmentObject private var prices: PriceService
+
     #if DEBUG
     @EnvironmentObject private var quantStatus: QuantStatusService
     #endif
@@ -211,6 +213,13 @@ struct DashboardView: View {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
             SpendingVelocityService.fireNotifications(for: velocityAlerts)
         }
+        // Fetch FX rates as soon as the dashboard appears so net worth and
+        // cash-flow figures are correct before the user visits Portfolio.
+        .task(id: accounts.map(\.wrappedCurrency).sorted().joined()) {
+            let currencies = Array(Set(accounts.map(\.wrappedCurrency)))
+            guard currencies.contains(where: { $0 != "USD" }) else { return }
+            await prices.refresh(assets: [], watchlist: [], currencies: currencies)
+        }
     }
 
     // MARK: - Claude context builder
@@ -310,8 +319,10 @@ struct DashboardView: View {
             guard let d = tx.date,
                   cal.component(.year,  from: d) == year,
                   cal.component(.month, from: d) == month else { continue }
-            if tx.amount > 0 { income   += tx.amount }
-            else             { expenses += abs(tx.amount) }
+            let currency = tx.account?.wrappedCurrency ?? "USD"
+            let converted = prices.usdValue(of: tx.amount, currency: currency)
+            if converted > 0 { income   += converted }
+            else             { expenses += abs(converted) }
         }
         return (income, expenses)
     }
@@ -534,6 +545,17 @@ struct DashboardView: View {
         .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
     }
 
+    // Each spending category gets a stable distinct color so the bar chart
+    // is immediately readable — not just a wall of the same accent shade.
+    private func categoryColor(_ category: TransactionCategory) -> Color {
+        let palette: [Color] = [
+            .ledgerAccent, .ledgerPositive, .orange, .purple, .pink,
+            .cyan, .yellow, .indigo, .teal, .red
+        ]
+        let index = abs(category.rawValue.hashValue) % palette.count
+        return palette[index]
+    }
+
     @ViewBuilder
     private var spendingChartCard: some View {
         let slices = currentMonthSpending
@@ -563,7 +585,7 @@ struct DashboardView: View {
                                 HStack {
                                     Image(systemName: slice.category.icon)
                                         .font(.caption)
-                                        .foregroundStyle(Color.ledgerAccent)
+                                        .foregroundStyle(categoryColor(slice.category))
                                         .frame(width: 14)
                                     Text(slice.category.displayName)
                                         .font(.caption)
@@ -579,10 +601,10 @@ struct DashboardView: View {
                                 GeometryReader { geo in
                                     ZStack(alignment: .leading) {
                                         RoundedRectangle(cornerRadius: 3)
-                                            .fill(Color.ledgerAccent.opacity(0.18))
+                                            .fill(categoryColor(slice.category).opacity(0.18))
                                             .frame(height: 6)
                                         RoundedRectangle(cornerRadius: 3)
-                                            .fill(Color.ledgerAccent)
+                                            .fill(categoryColor(slice.category))
                                             .frame(width: geo.size.width * min(slice.amount / maxAmt, 1.0), height: 6)
                                     }
                                 }
@@ -1110,6 +1132,22 @@ struct DashboardView: View {
             }
             .padding(Theme.s16)
             .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        } else if !allTransactions.isEmpty {
+            // Show a teaser so new users know the FI/RE card is coming.
+            HStack(spacing: Theme.s12) {
+                Image(systemName: "flame.fill")
+                    .foregroundStyle(Color.ledgerAccent.opacity(0.5))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("FI/RE Tracker")
+                        .font(.subheadline.bold())
+                    Text("Available after 3 months of transactions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface.opacity(0.6), in: RoundedRectangle(cornerRadius: Theme.radiusM))
         }
     }
 

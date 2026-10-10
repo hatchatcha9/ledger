@@ -17,8 +17,6 @@ struct SettingsView: View {
     @AppStorage("reminderTimeInterval")  private var reminderTimeInterval: Double = 9 * 3600
     @AppStorage("netWorthGoalEnabled")   private var goalEnabled           = false
     @AppStorage("netWorthGoalAmount")    private var goalAmount: Double     = 0
-    @AppStorage("anthropicAPIKey")       private var anthropicAPIKey       = ""
-
     @State private var goalAmountText  = ""
     @FocusState private var goalFocused: Bool
 

@@ -54,9 +54,20 @@ struct LedgerProvider: TimelineProvider {
         let container = makePersistentContainer()
         let ctx       = container.viewContext
 
+        // Load cached FX rates written by PriceService on last refresh.
+        var cachedFXRates: [String: Double] = [:]
+        if let data = shared.data(forKey: "cachedFXRates"),
+           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
+            cachedFXRates = decoded
+        }
+
         let accountReq         = NSFetchRequest<Account>(entityName: "Account")
         let accounts           = (try? ctx.fetch(accountReq)) ?? []
-        let netWorth           = accounts.reduce(0) { $0 + $1.balance }
+        let netWorth           = accounts.reduce(0.0) { sum, acc in
+            let currency = acc.currency ?? "USD"
+            let rate = currency == "USD" ? 1.0 : (cachedFXRates[currency] ?? 1.0)
+            return sum + acc.balance * rate
+        }
 
         // Load cached market prices written by PriceService on last refresh.
         var cachedPrices: [String: Double] = [:]

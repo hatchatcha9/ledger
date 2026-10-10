@@ -62,10 +62,15 @@ final class PriceService: ObservableObject {
                 }
             }
             lastUpdated = .now
-            // Cache prices in the shared App Group so the widget can use market values.
-            if let shared = UserDefaults(suiteName: "group.ledger"),
-               let encoded = try? JSONEncoder().encode(prices) {
-                shared.set(encoded, forKey: "cachedPrices")
+            // Cache prices and FX rates in the shared App Group so the widget
+            // can show correct market values and convert multi-currency balances.
+            if let shared = UserDefaults(suiteName: "group.ledger") {
+                if let encoded = try? JSONEncoder().encode(prices) {
+                    shared.set(encoded, forKey: "cachedPrices")
+                }
+                if let encoded = try? JSONEncoder().encode(fxRates) {
+                    shared.set(encoded, forKey: "cachedFXRates")
+                }
             }
         } catch {
             fetchError = "Prices unavailable — check your connection."
