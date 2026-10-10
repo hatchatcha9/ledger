@@ -74,7 +74,9 @@ struct DashboardView: View {
 
     @State private var selectedRange: TimeRange = .thirtyDays
     @State private var showingChat = false
+    @State private var showingAPIKeyPrompt = false
     @AppStorage("currencyCode")         private var currencyCode  = "USD"
+    @AppStorage("anthropicAPIKey")      private var anthropicAPIKey = ""
     @AppStorage("netWorthGoalEnabled")  private var goalEnabled   = false
     @AppStorage("netWorthGoalAmount")   private var goalAmount: Double = 0
     @AppStorage("fireMultiplier")       private var fireMultiplier: Double = 25
@@ -135,6 +137,10 @@ struct DashboardView: View {
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     HapticService.impact(.medium)
+                    guard !anthropicAPIKey.isEmpty else {
+                        showingAPIKeyPrompt = true
+                        return
+                    }
                     chatVM.financialContext = buildFinancialContext()
                     showingChat = true
                     #if DEBUG
@@ -206,6 +212,15 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingChat) {
             ChatView(viewModel: chatVM)
+        }
+        .alert("Set Up Ask Claude", isPresented: $showingAPIKeyPrompt) {
+            Button("Go to Settings") {
+                // Switch to the Settings tab — post a notification the ContentView listens to.
+                NotificationCenter.default.post(name: .openSettingsTab, object: nil)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Ask Claude needs your Anthropic API key. Add it once in Settings → Ask Claude and it stays on your device.")
         }
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))

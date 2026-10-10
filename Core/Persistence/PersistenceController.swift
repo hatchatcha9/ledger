@@ -11,36 +11,49 @@ struct PersistenceController {
         return controller
     }()
 
-    let container: NSPersistentContainer
+    let container: NSPersistentCloudKitContainer
 
     // App Group used to share the SQLite store with the widget extension.
     // Change this to match the group ID in Xcode → Signing & Capabilities.
     static let appGroupID = "group.ledger"
 
+    // CloudKit container identifier — must match the iCloud container you
+    // add in Xcode → Signing & Capabilities → iCloud → CloudKit.
+    static let cloudKitContainerID = "iCloud.com.hatchatcha9.ledger"
+
     init(inMemory: Bool = false) {
-        container = NSPersistentContainer(name: "Ledger")
+        container = NSPersistentCloudKitContainer(name: "Ledger")
 
         if inMemory {
-            container.persistentStoreDescriptions.first?.url =
-                URL(fileURLWithPath: "/dev/null")
+            // Previews: in-memory store, no CloudKit sync.
+            let desc = NSPersistentStoreDescription()
+            desc.url = URL(fileURLWithPath: "/dev/null")
+            desc.cloudKitContainerOptions = nil
+            container.persistentStoreDescriptions = [desc]
         } else if let groupURL = FileManager.default
             .containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID)?
             .appendingPathComponent("Ledger.sqlite") {
-            // Store in the shared App Group container so the widget can read it.
             let desc = NSPersistentStoreDescription(url: groupURL)
+            // Enable CloudKit sync.
+            let ckOptions = NSPersistentCloudKitContainerOptions(
+                containerIdentifier: Self.cloudKitContainerID
+            )
+            desc.cloudKitContainerOptions = ckOptions
+            // Required for CloudKit mirroring and remote-change notifications.
+            desc.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
+            desc.setOption(true as NSNumber,
+                           forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
             container.persistentStoreDescriptions = [desc]
         }
 
         container.loadPersistentStores { _, error in
             if let error {
-                // In production ship a proper error recovery screen instead of crashing.
                 fatalError("Core Data failed to load: \(error.localizedDescription)")
             }
         }
 
-        // Automatically pick up changes pushed by CloudKit or another context.
+        // Merge remote CloudKit changes into the view context automatically.
         container.viewContext.automaticallyMergesChangesFromParent = true
-        // Last-writer-wins on conflicts; swap for a custom policy if needed.
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
 

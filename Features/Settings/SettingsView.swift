@@ -44,8 +44,12 @@ struct SettingsView: View {
                 // MARK: Display
                 Section("Display") {
                     Picker("Currency", selection: $currencyCode) {
-                        ForEach(["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF"], id: \.self) {
-                            Text($0).tag($0)
+                        ForEach([
+                            "USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF",
+                            "CNY", "INR", "MXN", "BRL", "KRW", "SGD", "HKD",
+                            "NOK", "SEK", "DKK", "NZD", "ZAR", "AED", "THB"
+                        ], id: \.self) { code in
+                            Text(code).tag(code)
                         }
                     }
                 }
@@ -67,7 +71,7 @@ struct SettingsView: View {
 
                     if goalEnabled {
                         HStack {
-                            Text("$")
+                            Text(currencySymbol)
                                 .foregroundStyle(.secondary)
                             TextField("Target amount", text: $goalAmountText)
                                 .keyboardType(.decimalPad)
@@ -299,6 +303,11 @@ struct SettingsView: View {
     }
 
     // MARK: - Bundle helpers
+
+    private var currencySymbol: String {
+        let locale = Locale(identifier: Locale.identifier(fromComponents: [NSLocale.Key.currencyCode.rawValue: currencyCode]))
+        return locale.currencySymbol ?? currencyCode
+    }
 
     private var appVersion: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
