@@ -7,22 +7,33 @@ import Foundation
 @MainActor
 final class PriceService: ObservableObject {
 
-    @Published private(set) var prices:      [String: Double] = [:]  // symbol → USD price
+    @Published private(set) var prices:      [String: Double] = [:]  // symbol → price in native currency
     @Published private(set) var changes:     [String: Double] = [:]  // symbol → 24 h % change
+    @Published private(set) var fxRates:     [String: Double] = [:]  // "EUR" → USD per 1 EUR
     @Published private(set) var isLoading    = false
     @Published private(set) var lastUpdated: Date?   = nil
     @Published private(set) var fetchError:  String? = nil
 
+    // Converts an amount from `currency` to USD. Returns nil if rate unknown.
+    func usdValue(of amount: Double, currency: String) -> Double {
+        guard currency != "USD" else { return amount }
+        guard let rate = fxRates[currency] else { return amount } // fallback: raw sum
+        return amount * rate
+    }
+
     // Full refresh — pass both owned assets and watchlist items so they all
-    // fetch in one round-trip. Watchlist defaults to empty for callers that
-    // don't have the entity in scope yet.
-    func refresh(assets: [Asset], watchlist: [WatchlistItem] = []) async {
+    // fetch in one round-trip. Also pass account currencies to fetch FX rates.
+    func refresh(assets: [Asset], watchlist: [WatchlistItem] = [], currencies: [String] = []) async {
         let assetTickers     = assets.map   { yahooTicker($0.wrappedSymbol, kind: $0.assetKind) }
         let watchlistTickers = watchlist.map { yahooTicker($0.wrappedSymbol, kind: $0.assetKind) }
+        // FX tickers: "EURUSD=X", "JPYUSD=X", etc. (non-USD account currencies only)
+        let fxTickers = currencies
+            .filter { $0 != "USD" }
+            .map    { "\($0)USD=X" }
 
         // Deduplicate while preserving order.
         var seen = Set<String>()
-        let tickers = (assetTickers + watchlistTickers).filter { seen.insert($0).inserted }
+        let tickers = (assetTickers + watchlistTickers + fxTickers).filter { seen.insert($0).inserted }
         guard !tickers.isEmpty, !isLoading else { return }   // Bug 3: guard concurrent calls
 
         isLoading  = true
@@ -40,11 +51,22 @@ final class PriceService: ObservableObject {
             let response  = try JSONDecoder().decode(YFQuoteResponse.self, from: data)
 
             for quote in response.quoteResponse.result ?? [] {
-                let sym        = symbolFromTicker(quote.symbol)
-                prices[sym]  = quote.regularMarketPrice
-                changes[sym] = quote.regularMarketChangePercent ?? 0
+                if quote.symbol.hasSuffix("USD=X") {
+                    // FX ticker e.g. "EURUSD=X" → store rate under "EUR"
+                    let currency = String(quote.symbol.dropLast(5))
+                    fxRates[currency] = quote.regularMarketPrice
+                } else {
+                    let sym        = symbolFromTicker(quote.symbol)
+                    prices[sym]  = quote.regularMarketPrice
+                    changes[sym] = quote.regularMarketChangePercent ?? 0
+                }
             }
             lastUpdated = .now
+            // Cache prices in the shared App Group so the widget can use market values.
+            if let shared = UserDefaults(suiteName: "group.ledger"),
+               let encoded = try? JSONEncoder().encode(prices) {
+                shared.set(encoded, forKey: "cachedPrices")
+            }
         } catch {
             fetchError = "Prices unavailable — check your connection."
         }

@@ -82,7 +82,7 @@ struct DashboardView: View {
     @StateObject private var chatVM    = ChatViewModel()
     @State private var chatButtonPulse = false
     @State private var velocityAlerts: [VelocityAlert] = []
-    @State private var velocityDismissed = false
+    @AppStorage("velocityDismissedDay") private var velocityDismissedDay = ""
     @State private var drillCategory: TransactionCategory? = nil
     @State private var drillMonth: DateComponents? = nil
     @State private var showAllTransactions = false
@@ -110,7 +110,7 @@ struct DashboardView: View {
                         )
                     }
 
-                    if !velocityAlerts.isEmpty && !velocityDismissed {
+                    if !velocityAlerts.isEmpty && !velocityBannerDismissedToday {
                         velocityBannerCard
                     }
 
@@ -279,8 +279,18 @@ struct DashboardView: View {
 
     // MARK: - Computed scalars
 
+    private var velocityBannerDismissedToday: Bool {
+        velocityDismissedDay == todayString()
+    }
+
+    private func todayString() -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "yyyy-MM-dd"
+        return fmt.string(from: .now)
+    }
+
     private var totalBalance: Double {
-        accounts.reduce(0) { $0 + $1.balance }
+        accounts.reduce(0) { $0 + prices.usdValue(of: $1.balance, currency: $1.wrappedCurrency) }
     }
 
     // 30-day change for the net worth tile.
@@ -994,7 +1004,9 @@ struct DashboardView: View {
                     .foregroundStyle(.orange)
                 Spacer()
                 Button {
-                    withAnimation { velocityDismissed = true }
+                    withAnimation {
+                        velocityDismissedDay = todayString()
+                    }
                 } label: {
                     Image(systemName: "xmark")
                         .font(.caption.bold())

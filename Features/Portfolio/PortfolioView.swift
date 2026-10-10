@@ -38,6 +38,10 @@ struct PortfolioView: View {
 
     private var totalCostBasis: Double { assets.reduce(0) { $0 + $1.costBasis } }
 
+    private var accountCurrencies: [String] {
+        Array(Set(accounts.map(\.wrappedCurrency)))
+    }
+
     private var totalUnrealizedPnL: Double { totalValue - totalCostBasis }
 
     private var totalUnrealizedPct: Double {
@@ -185,7 +189,7 @@ struct PortfolioView: View {
                         ProgressView()
                     } else {
                         Button {
-                            Task { await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist)) }
+                            Task { await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist), currencies: accountCurrencies) }
                         } label: {
                             Image(systemName: "arrow.clockwise")
                         }
@@ -193,11 +197,11 @@ struct PortfolioView: View {
                 }
             }
             .refreshable {
-                await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist))
+                await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist), currencies: accountCurrencies)
                 HapticService.impact(.soft)
             }
             .task(id: (assets.map(\.wrappedSymbol) + watchlist.map(\.wrappedSymbol)).joined()) {
-                await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist))
+                await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist), currencies: accountCurrencies)
             }
             .sheet(isPresented: $showingAddWatchlist) {
                 AddWatchlistItemView()
@@ -285,7 +289,8 @@ struct PortfolioView: View {
     private var allocationChart: some View {
         let slices = allocationSlices
         let total  = slices.reduce(0) { $0 + $1.value }
-        let colors: [Color] = [.ledgerAccent, .ledgerPositive, .orange, .purple, .pink]
+        let colors: [Color] = [.ledgerAccent, .ledgerPositive, .orange, .purple, .pink,
+                               .cyan, .yellow, .indigo]
 
         VStack(alignment: .leading, spacing: Theme.s8) {
             Text("Allocation")

@@ -58,11 +58,22 @@ struct LedgerProvider: TimelineProvider {
         let accounts           = (try? ctx.fetch(accountReq)) ?? []
         let netWorth           = accounts.reduce(0) { $0 + $1.balance }
 
+        // Load cached market prices written by PriceService on last refresh.
+        var cachedPrices: [String: Double] = [:]
+        if let data = shared.data(forKey: "cachedPrices"),
+           let decoded = try? JSONDecoder().decode([String: Double].self, from: data) {
+            cachedPrices = decoded
+        }
+
         let assetReq           = NSFetchRequest<Asset>(entityName: "Asset")
         let topAssets          = ((try? ctx.fetch(assetReq)) ?? [])
-            .sorted { $0.costBasis > $1.costBasis }
+            .map { asset -> (Asset, Double) in
+                let price = cachedPrices[asset.wrappedSymbol] ?? asset.avgCost
+                return (asset, price * asset.quantity)
+            }
+            .sorted { $0.1 > $1.1 }
             .prefix(3)
-            .map { LedgerEntry.AssetSnapshot(symbol: $0.wrappedSymbol, value: $0.costBasis) }
+            .map { LedgerEntry.AssetSnapshot(symbol: $0.0.wrappedSymbol, value: $0.1) }
 
         return LedgerEntry(date: .now, netWorth: netWorth, currencyCode: code,
                            topAssets: Array(topAssets))
