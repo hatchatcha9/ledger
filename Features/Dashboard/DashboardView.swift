@@ -68,7 +68,9 @@ struct DashboardView: View {
         animation: .default
     ) private var journalEntries: FetchedResults<JournalEntry>
 
+    #if DEBUG
     @EnvironmentObject private var quantStatus: QuantStatusService
+    #endif
 
     @State private var selectedRange: TimeRange = .thirtyDays
     @State private var showingChat = false
@@ -135,7 +137,9 @@ struct DashboardView: View {
                     HapticService.impact(.medium)
                     chatVM.financialContext = buildFinancialContext()
                     showingChat = true
+                    #if DEBUG
                     Task { await quantStatus.fetch() }
+                    #endif
                 } label: {
                     HStack(spacing: Theme.s8) {
                         Image(systemName: "sparkles")
@@ -260,13 +264,15 @@ struct DashboardView: View {
             lines.append("\nNET WORTH GOAL: \(goalAmount.asCurrency(code: currencyCode)) (\(String(format: "%.1f", progress))% reached)")
         }
 
-        // Live quant status (fetched fresh each time chat opens)
+        // Live quant status — developer build only
+        #if DEBUG
         if let qs = quantStatus.status {
             lines.append("\nQUANT SYSTEM (LIVE):")
             lines.append(qs.contextString)
         } else {
             lines.append("\nQUANT SYSTEM: (status unavailable — offline or not yet deployed)")
         }
+        #endif
 
         return lines.joined(separator: "\n")
     }

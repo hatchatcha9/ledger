@@ -1,11 +1,13 @@
 import Foundation
 
-// MARK: - API key
-// Replace the value below with your Anthropic API key before shipping.
-// Never commit a real key to source control.
+// MARK: - API config
+// The API key is never stored in source code. Users enter their own key in
+// Settings → Ask Claude → API Key. It is stored only in UserDefaults (on-device).
 enum ClaudeAPIConfig {
-    static let apiKey = "REDACTED"
-    static let model  = "claude-sonnet-4-6"
+    static var apiKey: String {
+        UserDefaults.standard.string(forKey: "anthropicAPIKey") ?? ""
+    }
+    static let model = "claude-sonnet-4-6"
 }
 
 // MARK: - Service
@@ -39,10 +41,12 @@ final class ClaudeService {
     }
 
     enum ServiceError: LocalizedError {
+        case missingAPIKey
         case apiError(String)
         case emptyResponse
         var errorDescription: String? {
             switch self {
+            case .missingAPIKey:      return "No API key set. Add your Anthropic key in Settings → Ask Claude."
             case .apiError(let msg):  return "API error: \(msg)"
             case .emptyResponse:      return "No response from Claude"
             }
@@ -50,15 +54,18 @@ final class ClaudeService {
     }
 
     func send(messages: [APIMessage], system: String) async throws -> String {
+        let key = ClaudeAPIConfig.apiKey
+        guard !key.isEmpty else { throw ServiceError.missingAPIKey }
+
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
             throw ServiceError.apiError("Invalid URL")
         }
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.setValue("application/json",         forHTTPHeaderField: "Content-Type")
-        req.setValue(ClaudeAPIConfig.apiKey,      forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01",               forHTTPHeaderField: "anthropic-version")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue(key,                forHTTPHeaderField: "x-api-key")
+        req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
 
         let body = RequestBody(
             model:      ClaudeAPIConfig.model,
@@ -71,7 +78,6 @@ final class ClaudeService {
         let (data, response) = try await URLSession.shared.data(for: req)
 
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            // Try to extract Anthropic's error message; fall back to the status code.
             let msg = (try? JSONDecoder().decode(ResponseBody.self, from: data))?.error?.message
                 ?? "HTTP \(http.statusCode)"
             throw ServiceError.apiError(msg)
