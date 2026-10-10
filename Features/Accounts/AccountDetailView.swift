@@ -18,6 +18,8 @@ struct AccountDetailView: View {
     @State private var showingDeleteConfirm    = false
     @State private var showingCSVImport        = false
     @State private var transactionSearch       = ""
+    @State private var detectedPatterns: [DetectedPattern] = []
+    @State private var showingDebtPayoff       = false
     @Environment(\.dismiss) private var dismiss
 
     private var filteredTransactions: [CDTransaction] {
@@ -84,6 +86,18 @@ struct AccountDetailView: View {
                         statPill(label: "Assets", value: "\(account.assetsArray.count)")
                     }
                     .padding(.top, 4)
+
+                    if account.accountType.isDebt {
+                        Button {
+                            showingDebtPayoff = true
+                        } label: {
+                            Label("Debt Payoff Planner", systemImage: "calendar.badge.minus")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color.ledgerNegative)
+                        .padding(.top, 4)
+                    }
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 10)
@@ -112,6 +126,45 @@ struct AccountDetailView: View {
                             .foregroundStyle(Color.ledgerAccent)
                     }
                     .buttonStyle(.plain)
+                }
+            }
+
+            // MARK: Auto-detected recurring patterns
+            if !detectedPatterns.isEmpty {
+                Section {
+                    ForEach(detectedPatterns) { pattern in
+                        Button {
+                            createRecurringFromPattern(pattern)
+                        } label: {
+                            HStack(spacing: Theme.s12) {
+                                Image(systemName: "wand.and.stars")
+                                    .font(.body)
+                                    .foregroundStyle(Color.ledgerAccent)
+                                    .frame(width: 36, height: 36)
+                                    .background(Color.ledgerAccent.opacity(0.1),
+                                                in: RoundedRectangle(cornerRadius: Theme.radiusS))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(pattern.name)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                    Text("\(pattern.frequency.displayName) · \(pattern.amount.asCurrency())")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Text("Add")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.ledgerAccent)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } header: {
+                    Label("Detected Patterns", systemImage: "wand.and.stars")
+                        .foregroundStyle(Color.ledgerAccent)
+                } footer: {
+                    Text("Tap to add as a recurring transaction.")
+                        .font(.caption)
                 }
             }
 
@@ -245,6 +298,18 @@ struct AccountDetailView: View {
             CSVImportView(account: account)
                 .environment(\.managedObjectContext, ctx)
         }
+        // Debt payoff planner navigation
+        .navigationDestination(isPresented: $showingDebtPayoff) {
+            DebtPayoffView(account: account)
+        }
+        // Detect recurring patterns on first load
+        .onAppear {
+            let existing = account.recurringTransactionsArray
+            detectedPatterns = RecurringDetectionService.detect(
+                in: account.transactionsArray,
+                excluding: existing
+            )
+        }
         // Confirm delete account
         .alert("Delete \(account.wrappedName)?", isPresented: $showingDeleteConfirm) {
             Button("Delete", role: .destructive) {
@@ -359,6 +424,23 @@ struct AccountDetailView: View {
             ctx.delete(tx)
         }
         try? ctx.save()
+    }
+
+    private func createRecurringFromPattern(_ pattern: DetectedPattern) {
+        HapticService.impact(.medium)
+        let rule          = RecurringTransaction(context: ctx)
+        rule.id           = UUID()
+        rule.name         = pattern.name
+        rule.amount       = pattern.amount
+        rule.frequency    = pattern.frequency.rawValue
+        rule.category     = pattern.sampleTransactions.first?.category ?? TransactionCategory.other.rawValue
+        rule.isActive     = true
+        rule.nextDueDate  = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
+        rule.account      = account
+        try? ctx.save()
+        // Remove from detected list so it doesn't re-appear immediately
+        detectedPatterns.removeAll { $0.id == pattern.id }
+        HapticService.success()
     }
 }
 

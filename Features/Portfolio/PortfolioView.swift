@@ -16,8 +16,15 @@ struct PortfolioView: View {
         animation: .default
     ) private var watchlist: FetchedResults<WatchlistItem>
 
+    @FetchRequest(
+        sortDescriptors: [SortDescriptor(\.name)],
+        animation: .default
+    ) private var accounts: FetchedResults<Account>
+
     @AppStorage("currencyCode") private var currencyCode = "USD"
-    @State private var showingAddWatchlist = false
+    @State private var showingAddWatchlist  = false
+    @State private var showingAddAsset      = false
+    @State private var quickAddAccount: Account? = nil
 
     // MARK: - Computed totals
 
@@ -109,7 +116,23 @@ struct PortfolioView: View {
                         }
                     }
                 } header: {
-                    Text("Holdings")
+                    HStack {
+                        Text("Holdings")
+                        Spacer()
+                        Button {
+                            if let first = accounts.first(where: { !$0.assetsArray.isEmpty }) {
+                                quickAddAccount = first
+                            } else {
+                                quickAddAccount = accounts.first
+                            }
+                            showingAddAsset = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .foregroundStyle(Color.ledgerAccent)
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(accounts.isEmpty)
+                    }
                 } footer: {
                     if !watchlist.isEmpty { EmptyView() } else { updatedFooter }
                 }
@@ -176,6 +199,12 @@ struct PortfolioView: View {
             .sheet(isPresented: $showingAddWatchlist) {
                 AddWatchlistItemView()
                     .environment(\.managedObjectContext, ctx)
+            }
+            .sheet(isPresented: $showingAddAsset) {
+                if let acct = quickAddAccount ?? accounts.first {
+                    QuickAddPositionView(accounts: Array(accounts), selectedAccount: acct)
+                        .environment(\.managedObjectContext, ctx)
+                }
             }
             .overlay {
                 if assets.isEmpty {
@@ -339,6 +368,12 @@ private struct WatchlistRow: View {
                 Text(item.wrappedSymbol).font(.body.bold())
                 Text(item.wrappedName.isEmpty ? item.assetKind.displayName : item.wrappedName)
                     .font(.caption).foregroundStyle(.secondary)
+                if !item.wrappedThesis.isEmpty {
+                    Text(item.wrappedThesis)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(2)
+                }
             }
 
             Spacer()
@@ -356,12 +391,24 @@ private struct WatchlistRow: View {
                             .contentTransition(.numericText())
                             .animation(.spring(.smooth), value: dc)
                     }
+                    // Target price indicator
+                    if item.hasTargetPrice {
+                        let gap = (item.targetPriceValue - price) / price * 100
+                        Text("\(gap >= 0 ? "+" : "")\(String(format: "%.1f", gap))% to target")
+                            .font(.caption2)
+                            .foregroundStyle(gap >= 0 ? Color.ledgerPositive : Color.ledgerNegative)
+                    }
                 } else if isLoading {
                     ShimmerView(height: 16, cornerRadius: 4).frame(width: 72)
                     ShimmerView(height: 11, cornerRadius: 3).frame(width: 44)
                 } else {
                     Text("—").font(Theme.monoBody()).foregroundStyle(.secondary)
-                    Text("Watching").font(.caption).foregroundStyle(.tertiary)
+                    if item.hasTargetPrice {
+                        Text("Target: \(item.targetPriceValue.asCurrency(code: currencyCode))")
+                            .font(.caption2).foregroundStyle(.secondary)
+                    } else {
+                        Text("Watching").font(.caption).foregroundStyle(.tertiary)
+                    }
                 }
             }
         }

@@ -5,11 +5,18 @@ struct AddWatchlistItemView: View {
     @Environment(\.managedObjectContext) private var ctx
     @Environment(\.dismiss) private var dismiss
 
-    @State private var symbol    = ""
-    @State private var name      = ""
-    @State private var assetType = AssetType.stock
+    @State private var symbol          = ""
+    @State private var name            = ""
+    @State private var assetType       = AssetType.stock
+    @State private var thesisText      = ""
+    @State private var targetPriceText = ""
 
     @FocusState private var symbolFocused: Bool
+
+    private var targetPrice: Double? {
+        guard !targetPriceText.isEmpty else { return nil }
+        return Double(targetPriceText.replacingOccurrences(of: ",", with: ""))
+    }
 
     var body: some View {
         NavigationStack {
@@ -35,6 +42,19 @@ struct AddWatchlistItemView: View {
                 } footer: {
                     Text("Watchlist items are tracked at live market prices but not counted in your portfolio value.")
                 }
+
+                Section("Investment Thesis") {
+                    TextField("Why are you watching this? (optional)", text: $thesisText, axis: .vertical)
+                        .lineLimit(2...5)
+                    HStack {
+                        Text("Target Price")
+                        TextField("0.00", text: $targetPriceText)
+                            .keyboardType(.decimalPad)
+                            .multilineTextAlignment(.trailing)
+                    }
+                } footer: {
+                    Text("Your thesis and target price are private notes to help you stay disciplined.")
+                }
             }
             .navigationTitle("Add to Watchlist")
             .navigationBarTitleDisplayMode(.inline)
@@ -53,12 +73,14 @@ struct AddWatchlistItemView: View {
     }
 
     private func save() {
-        let item       = WatchlistItem(context: ctx)
-        item.id        = UUID()
-        item.symbol    = symbol.trimmingCharacters(in: .whitespaces).uppercased()
-        item.name      = name.trimmingCharacters(in: .whitespaces)
-        item.assetType = assetType.rawValue
-        item.addedAt   = .now
+        let item          = WatchlistItem(context: ctx)
+        item.id           = UUID()
+        item.symbol       = symbol.trimmingCharacters(in: .whitespaces).uppercased()
+        item.name         = name.trimmingCharacters(in: .whitespaces)
+        item.assetType    = assetType.rawValue
+        item.addedAt      = .now
+        item.thesis       = thesisText.isEmpty ? nil : thesisText.trimmingCharacters(in: .whitespacesAndNewlines)
+        item.targetPrice  = targetPrice ?? 0
         try? ctx.save()
         HapticService.success()
         dismiss()

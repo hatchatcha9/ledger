@@ -13,6 +13,7 @@ struct JournalView: View {
     @State private var editingEntry: JournalEntry? = nil
     @State private var searchText        = ""
     @State private var outcomeFilter: TradeOutcome? = nil   // nil = All
+    @State private var showTaxSummary    = false
 
     private var filteredEntries: [JournalEntry] {
         entries.filter { entry in
@@ -50,6 +51,21 @@ struct JournalView: View {
 
     private var openCount: Int { entries.filter { $0.isOpen }.count }
 
+    // Group closed entries by calendar year for tax P&L summary.
+    private var taxYearPnL: [(year: Int, pnl: Double, count: Int)] {
+        let cal = Calendar.current
+        var buckets = [Int: (Double, Int)]()
+        for e in closedEntries {
+            guard let pnl = e.realisedPnL else { continue }
+            let year = cal.component(.year, from: e.exitDate ?? e.entryDate ?? .now)
+            let (prev, count) = buckets[year, default: (0, 0)]
+            buckets[year] = (prev + pnl, count + 1)
+        }
+        return buckets
+            .map { (year: $0.key, pnl: $0.value.0, count: $0.value.1) }
+            .sorted { $0.year > $1.year }
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -58,6 +74,30 @@ struct JournalView: View {
                         statsCard
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
+                    }
+
+                    // Tax year summary
+                    if !taxYearPnL.isEmpty {
+                        Section {
+                            DisclosureGroup(isExpanded: $showTaxSummary) {
+                                ForEach(taxYearPnL, id: \.year) { row in
+                                    HStack {
+                                        Text("Tax Year \(row.year)")
+                                            .font(.subheadline)
+                                        Text("(\(row.count) trades)")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text((row.pnl >= 0 ? "+" : "") + row.pnl.asCurrency())
+                                            .font(Theme.monoBody().bold())
+                                            .foregroundStyle(Color.changeColor(for: row.pnl))
+                                    }
+                                }
+                            } label: {
+                                Label("Realized P&L by Tax Year", systemImage: "doc.text.magnifyingglass")
+                                    .font(.subheadline.bold())
+                            }
+                        }
                     }
                 }
                 ForEach(filteredEntries) { entry in

@@ -283,7 +283,7 @@ struct CSVImportView: View {
         }
 
         try? ctx.save()
-        HapticService.notification(.success)
+        HapticService.success()
         isImporting = false
         importState = .done(rows.count)
     }

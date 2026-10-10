@@ -75,9 +75,15 @@ struct DashboardView: View {
     @AppStorage("currencyCode")         private var currencyCode  = "USD"
     @AppStorage("netWorthGoalEnabled")  private var goalEnabled   = false
     @AppStorage("netWorthGoalAmount")   private var goalAmount: Double = 0
+    @AppStorage("fireMultiplier")       private var fireMultiplier: Double = 25
 
     @StateObject private var chatVM    = ChatViewModel()
     @State private var chatButtonPulse = false
+    @State private var velocityAlerts: [VelocityAlert] = []
+    @State private var velocityDismissed = false
+    @State private var drillCategory: TransactionCategory? = nil
+    @State private var drillMonth: DateComponents? = nil
+    @State private var showAllTransactions = false
 
     // MARK: - Body
 
@@ -102,9 +108,14 @@ struct DashboardView: View {
                         )
                     }
 
+                    if !velocityAlerts.isEmpty && !velocityDismissed {
+                        velocityBannerCard
+                    }
+
                     if goalEnabled && goalAmount > 0 {
                         goalCard
                     }
+                    fireCard
                     netWorthChartCard
                     cashFlowCard
                     forecastCard
@@ -152,6 +163,48 @@ struct DashboardView: View {
         }
         .sheet(isPresented: $showingChat) {
             ChatView(viewModel: chatVM)
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { drillCategory != nil },
+            set: { if !$0 { drillCategory = nil } }
+        )) {
+            if let cat = drillCategory {
+                FilteredTransactionListView(
+                    title: cat.displayName,
+                    transactions: allTransactions.filter {
+                        let cal = Calendar.current; let now = Date()
+                        guard $0.transactionCategory == cat, let d = $0.date else { return false }
+                        return cal.component(.year,  from: d) == cal.component(.year,  from: now)
+                            && cal.component(.month, from: d) == cal.component(.month, from: now)
+                    }
+                )
+            }
+        }
+        .navigationDestination(isPresented: Binding(
+            get: { drillMonth != nil },
+            set: { if !$0 { drillMonth = nil } }
+        )) {
+            if let dc = drillMonth {
+                FilteredTransactionListView(
+                    title: monthLabel(dc),
+                    transactions: allTransactions.filter {
+                        guard let d = $0.date else { return false }
+                        let cal = Calendar.current
+                        return cal.component(.year,  from: d) == dc.year
+                            && cal.component(.month, from: d) == dc.month
+                    }
+                )
+            }
+        }
+        .navigationDestination(isPresented: $showAllTransactions) {
+            FilteredTransactionListView(
+                title: "All Transactions",
+                transactions: Array(allTransactions)
+            )
+        }
+        .onAppear {
+            velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
+            SpendingVelocityService.fireNotifications(for: velocityAlerts)
         }
     }
 
@@ -466,16 +519,15 @@ struct DashboardView: View {
 
     @ViewBuilder
     private var spendingChartCard: some View {
-        let slices    = currentMonthSpending
-        let barHeight = CGFloat(max(slices.count, 2) * 40 + 8)
-        let clampedH  = min(max(barHeight, 80), 320)
+        let slices = currentMonthSpending
+        let maxAmt = slices.first?.amount ?? 1
 
         VStack(alignment: .leading, spacing: Theme.s12) {
             HStack {
                 Label("Spending", systemImage: "chart.bar.fill")
                     .font(.subheadline.bold())
                 Spacer()
-                Text("This month")
+                Text("Tap to drill in")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -484,26 +536,41 @@ struct DashboardView: View {
                 emptyChartPlaceholder(icon: "chart.pie.fill",
                                       message: "No expenses recorded this month")
             } else {
-                Chart(slices) { slice in
-                    BarMark(
-                        x: .value("Amount",   slice.amount),
-                        y: .value("Category", slice.category.displayName)
-                    )
-                    .foregroundStyle(Color.ledgerAccent.gradient)
-                    .cornerRadius(4)
-                    .annotation(position: .trailing, alignment: .leading) {
-                        Text(slice.amount.asCurrency())
-                            .font(.caption2.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .frame(height: clampedH)
-                .chartXAxis(.hidden)
-                .chartYAxis {
-                    AxisMarks { _ in
-                        AxisValueLabel()
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                VStack(spacing: Theme.s8) {
+                    ForEach(slices) { slice in
+                        Button {
+                            HapticService.impact(.light)
+                            drillCategory = slice.category
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Image(systemName: slice.category.icon)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.ledgerAccent)
+                                        .frame(width: 14)
+                                    Text(slice.category.displayName)
+                                        .font(.caption)
+                                        .foregroundStyle(.primary)
+                                    Spacer()
+                                    Text(slice.amount.asCurrency(code: currencyCode))
+                                        .font(Theme.monoCaption())
+                                        .foregroundStyle(.primary)
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
+                                }
+                                GeometryReader { geo in
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.ledgerAccent.opacity(0.18))
+                                        .frame(height: 6)
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color.ledgerAccent)
+                                        .frame(width: geo.size.width * min(slice.amount / maxAmt, 1.0), height: 6)
+                                }
+                                .frame(height: 6)
+                            }
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -586,6 +653,43 @@ struct DashboardView: View {
                         .font(Theme.monoCaption().bold())
                         .foregroundStyle(saved >= 0 ? .ledgerPositive : .ledgerNegative)
                 }
+
+                // Tappable month drill-through buttons
+                let cal = Calendar.current
+                let distinctMonths: [DateComponents] = {
+                    var seen = Set<String>()
+                    return data.compactMap { item -> DateComponents? in
+                        let key = "\(item.year)-\(item.month)"
+                        guard seen.insert(key).inserted else { return nil }
+                        return DateComponents(year: item.year, month: item.month)
+                    }
+                }()
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: Theme.s8) {
+                        ForEach(distinctMonths, id: \.self) { dc in
+                            Button {
+                                HapticService.impact(.light)
+                                drillMonth = dc
+                            } label: {
+                                let label: String = {
+                                    guard let y = dc.year, let m = dc.month,
+                                          let d = cal.date(from: DateComponents(year: y, month: m)) else {
+                                        return "?"
+                                    }
+                                    return d.formatted(.dateTime.month(.abbreviated))
+                                }()
+                                Text(label)
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.ledgerAccent)
+                                    .padding(.horizontal, Theme.s8)
+                                    .padding(.vertical, 4)
+                                    .background(Color.ledgerAccent.opacity(0.1), in: Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
             }
         }
         .padding(Theme.s16)
@@ -599,8 +703,17 @@ struct DashboardView: View {
         let recent = recentTransactions
         if !recent.isEmpty {
             VStack(alignment: .leading, spacing: Theme.s12) {
-                Label("Recent Activity", systemImage: "clock.arrow.circlepath")
-                    .font(.subheadline.bold())
+                HStack {
+                    Label("Recent Activity", systemImage: "clock.arrow.circlepath")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Button("See All") {
+                        HapticService.impact(.light)
+                        showAllTransactions = true
+                    }
+                    .font(.caption)
+                    .foregroundStyle(Color.ledgerAccent)
+                }
 
                 ForEach(Array(recent.enumerated()), id: \.offset) { idx, tx in
                     HStack(spacing: Theme.s12) {
@@ -859,6 +972,127 @@ struct DashboardView: View {
         }
         .padding(Theme.s16)
         .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+    }
+
+    // MARK: - Velocity alert banner
+
+    @ViewBuilder
+    private var velocityBannerCard: some View {
+        VStack(alignment: .leading, spacing: Theme.s8) {
+            HStack {
+                Label("Spending Alert", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.orange)
+                Spacer()
+                Button {
+                    withAnimation { velocityDismissed = true }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                }
+            }
+            ForEach(velocityAlerts) { alert in
+                HStack(spacing: Theme.s8) {
+                    Image(systemName: alert.category.icon)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                    Text("\(alert.category.displayName): on pace to spend \(Int((alert.ratio - 1) * 100))% more than usual this month")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(Theme.s16)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusM).stroke(Color.orange.opacity(0.25), lineWidth: 1))
+    }
+
+    // MARK: - FI/RE card
+
+    private var annualExpenses: Double {
+        let cal = Calendar.current
+        guard let yearAgo = cal.date(byAdding: .year, value: -1, to: .now) else { return 0 }
+        return allTransactions
+            .filter { ($0.date ?? .distantPast) >= yearAgo && $0.amount < 0 }
+            .reduce(0) { $0 + abs($1.amount) }
+    }
+
+    private var fireNumber: Double { annualExpenses * fireMultiplier }
+    private var fireProgress: Double { fireNumber > 0 ? min(totalBalance / fireNumber, 1.0) : 0 }
+
+    private var projectedFIREDate: Date? {
+        guard fireNumber > totalBalance, currentMonthSavings > 0 else { return nil }
+        let months = Int((fireNumber - totalBalance) / currentMonthSavings)
+        guard months > 0 else { return nil }
+        return Calendar.current.date(byAdding: .month, value: months, to: .now)
+    }
+
+    @ViewBuilder
+    private var fireCard: some View {
+        if annualExpenses > 0 {
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                HStack {
+                    Label("FI/RE Number", systemImage: "flame.fill")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Text("\(Int(fireMultiplier))× expenses")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text(totalBalance.asCurrency(code: currencyCode))
+                        .font(Theme.monoSubhead())
+                        .contentTransition(.numericText())
+                    Text("of")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(fireNumber.asCurrency(code: currencyCode))
+                        .font(Theme.monoSubhead())
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(Int(fireProgress * 100))%")
+                        .font(Theme.monoSubhead().bold())
+                        .foregroundStyle(fireProgress >= 1 ? .ledgerPositive : .ledgerAccent)
+                        .contentTransition(.numericText())
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color(.systemFill)).frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(fireProgress >= 1 ? Color.ledgerPositive : Color.ledgerAccent)
+                            .frame(width: geo.size.width * fireProgress, height: 8)
+                            .animation(.spring(.smooth(duration: 0.8)), value: fireProgress)
+                    }
+                }
+                .frame(height: 8)
+
+                if fireProgress >= 1 {
+                    Text("Financially independent!")
+                        .font(.caption).foregroundStyle(.ledgerPositive)
+                } else if let date = projectedFIREDate {
+                    Text("At current savings rate · est. \(date.formatted(.dateTime.month(.abbreviated).year()))")
+                        .font(.caption).foregroundStyle(.secondary)
+                } else {
+                    Text("Add more months of data for a projection")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        }
+    }
+
+    // MARK: - Month label helper for drill-through
+
+    private func monthLabel(_ dc: DateComponents) -> String {
+        guard let y = dc.year, let m = dc.month,
+              let date = Calendar.current.date(from: DateComponents(year: y, month: m)) else {
+            return "Transactions"
+        }
+        return date.formatted(.dateTime.month(.wide).year())
     }
 
     // "£12k", "¥1.2M", "$450" — compact labels for the Y axis; uses the user's currency symbol.

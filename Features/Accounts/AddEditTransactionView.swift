@@ -14,7 +14,16 @@ struct AddEditTransactionView: View {
     @State private var category: TransactionCategory = .other
     @State private var date = Date()
     @State private var notes = ""
+    @State private var splits: [TransactionSplit] = []
+    @State private var showingSplitEditor = false
     @FocusState private var amountFocused: Bool
+
+    private var isSplit: Bool { !splits.isEmpty }
+    private var splitsTotal: Double { splits.reduce(0) { $0 + $1.amount } }
+    private var splitsBalanced: Bool {
+        guard let total = parsedAmount, isSplit else { return true }
+        return abs(splitsTotal - total) < 0.01
+    }
 
     private var isEditing: Bool { transaction != nil }
 
@@ -24,7 +33,7 @@ struct AddEditTransactionView: View {
 
     private var canSave: Bool {
         guard let v = parsedAmount else { return false }
-        return v > 0
+        return v > 0 && (splits.isEmpty || splitsBalanced)
     }
 
     var body: some View {
@@ -75,6 +84,49 @@ struct AddEditTransactionView: View {
                         .lineLimit(2...4)
                 }
 
+                // MARK: Splits
+                Section {
+                    if splits.isEmpty {
+                        Button {
+                            guard let total = parsedAmount, total > 0 else { return }
+                            showingSplitEditor = true
+                        } label: {
+                            Label("Split Transaction", systemImage: "scissors")
+                                .foregroundStyle(Color.ledgerAccent)
+                        }
+                        .disabled(parsedAmount == nil)
+                    } else {
+                        ForEach(splits) { split in
+                            HStack {
+                                Image(systemName: split.transactionCategory.icon)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 16)
+                                Text(split.category)
+                                    .font(.subheadline)
+                                Spacer()
+                                Text(split.amount.asCurrency(code: account.wrappedCurrency))
+                                    .font(Theme.monoBody())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        if !splitsBalanced, let total = parsedAmount {
+                            Label("Splits total \(splitsTotal.asCurrency()) — needs \(total.asCurrency())", systemImage: "exclamationmark.triangle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.orange)
+                        }
+                        Button("Edit Splits") {
+                            showingSplitEditor = true
+                        }
+                        .foregroundStyle(Color.ledgerAccent)
+                        Button("Remove Splits", role: .destructive) {
+                            splits = []
+                        }
+                    }
+                } header: {
+                    if isSplit { Text("Splits") }
+                }
+
                 // MARK: Account info (read-only, helpful context)
                 Section {
                     LabeledContent("Account", value: account.wrappedName)
@@ -97,6 +149,13 @@ struct AddEditTransactionView: View {
                     Button("Done") { amountFocused = false }
                 }
             }
+        }
+        .sheet(isPresented: $showingSplitEditor) {
+            SplitEditorView(
+                total: parsedAmount ?? 0,
+                currencyCode: account.wrappedCurrency,
+                splits: $splits
+            )
         }
         .onAppear {
             preloadFields()
@@ -135,6 +194,7 @@ struct AddEditTransactionView: View {
         category   = tx.transactionCategory
         date       = tx.date ?? .now
         notes      = tx.wrappedNotes
+        splits     = tx.splits
     }
 
     private func saveTransaction() {
@@ -152,6 +212,7 @@ struct AddEditTransactionView: View {
             existing.type     = isExpense ? "expense" : "income"
             existing.date     = date
             existing.notes    = notes
+            existing.splits   = splits
         } else {
             let tx       = CDTransaction(context: ctx)
             tx.id        = UUID()
@@ -162,6 +223,7 @@ struct AddEditTransactionView: View {
             tx.notes     = notes
             tx.createdAt = .now
             tx.account   = account
+            tx.splits    = splits
 
             // Mirror the transaction on the account balance.
             account.balance += signed
