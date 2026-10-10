@@ -435,7 +435,7 @@ struct AccountDetailView: View {
         rule.frequency    = pattern.frequency.rawValue
         rule.category     = pattern.sampleTransactions.first?.category ?? TransactionCategory.other.rawValue
         rule.isActive     = true
-        rule.nextDueDate  = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
+        rule.nextDueDate  = pattern.frequency.nextDate(after: Date())
         rule.account      = account
         try? ctx.save()
         // Remove from detected list so it doesn't re-appear immediately

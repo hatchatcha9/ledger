@@ -160,47 +160,48 @@ struct DashboardView: View {
                 .padding(.bottom, Theme.s16)
                 .onAppear { chatButtonPulse = true }
             }
+            // navigationDestination must be inside the NavigationStack context.
+            .navigationDestination(isPresented: Binding(
+                get: { drillCategory != nil },
+                set: { if !$0 { drillCategory = nil } }
+            )) {
+                if let cat = drillCategory {
+                    FilteredTransactionListView(
+                        title: cat.displayName,
+                        transactions: allTransactions.filter {
+                            let cal = Calendar.current; let now = Date()
+                            guard $0.transactionCategory == cat, let d = $0.date else { return false }
+                            return cal.component(.year,  from: d) == cal.component(.year,  from: now)
+                                && cal.component(.month, from: d) == cal.component(.month, from: now)
+                        }
+                    )
+                }
+            }
+            .navigationDestination(isPresented: Binding(
+                get: { drillMonth != nil },
+                set: { if !$0 { drillMonth = nil } }
+            )) {
+                if let dc = drillMonth {
+                    FilteredTransactionListView(
+                        title: monthLabel(dc),
+                        transactions: allTransactions.filter {
+                            guard let d = $0.date else { return false }
+                            let cal = Calendar.current
+                            return cal.component(.year,  from: d) == dc.year
+                                && cal.component(.month, from: d) == dc.month
+                        }
+                    )
+                }
+            }
+            .navigationDestination(isPresented: $showAllTransactions) {
+                FilteredTransactionListView(
+                    title: "All Transactions",
+                    transactions: Array(allTransactions)
+                )
+            }
         }
         .sheet(isPresented: $showingChat) {
             ChatView(viewModel: chatVM)
-        }
-        .navigationDestination(isPresented: Binding(
-            get: { drillCategory != nil },
-            set: { if !$0 { drillCategory = nil } }
-        )) {
-            if let cat = drillCategory {
-                FilteredTransactionListView(
-                    title: cat.displayName,
-                    transactions: allTransactions.filter {
-                        let cal = Calendar.current; let now = Date()
-                        guard $0.transactionCategory == cat, let d = $0.date else { return false }
-                        return cal.component(.year,  from: d) == cal.component(.year,  from: now)
-                            && cal.component(.month, from: d) == cal.component(.month, from: now)
-                    }
-                )
-            }
-        }
-        .navigationDestination(isPresented: Binding(
-            get: { drillMonth != nil },
-            set: { if !$0 { drillMonth = nil } }
-        )) {
-            if let dc = drillMonth {
-                FilteredTransactionListView(
-                    title: monthLabel(dc),
-                    transactions: allTransactions.filter {
-                        guard let d = $0.date else { return false }
-                        let cal = Calendar.current
-                        return cal.component(.year,  from: d) == dc.year
-                            && cal.component(.month, from: d) == dc.month
-                    }
-                )
-            }
-        }
-        .navigationDestination(isPresented: $showAllTransactions) {
-            FilteredTransactionListView(
-                title: "All Transactions",
-                transactions: Array(allTransactions)
-            )
         }
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
@@ -560,12 +561,14 @@ struct DashboardView: View {
                                         .foregroundStyle(.tertiary)
                                 }
                                 GeometryReader { geo in
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(Color.ledgerAccent.opacity(0.18))
-                                        .frame(height: 6)
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(Color.ledgerAccent)
-                                        .frame(width: geo.size.width * min(slice.amount / maxAmt, 1.0), height: 6)
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color.ledgerAccent.opacity(0.18))
+                                            .frame(height: 6)
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color.ledgerAccent)
+                                            .frame(width: geo.size.width * min(slice.amount / maxAmt, 1.0), height: 6)
+                                    }
                                 }
                                 .frame(height: 6)
                             }
@@ -1019,7 +1022,7 @@ struct DashboardView: View {
     }
 
     private var fireNumber: Double { annualExpenses * fireMultiplier }
-    private var fireProgress: Double { fireNumber > 0 ? min(totalBalance / fireNumber, 1.0) : 0 }
+    private var fireProgress: Double { fireNumber > 0 ? max(0, min(totalBalance / fireNumber, 1.0)) : 0 }
 
     private var projectedFIREDate: Date? {
         guard fireNumber > totalBalance, currentMonthSavings > 0 else { return nil }

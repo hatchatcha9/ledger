@@ -111,7 +111,7 @@ struct AddEditTransactionView: View {
                             }
                         }
                         if !splitsBalanced, let total = parsedAmount {
-                            Label("Splits total \(splitsTotal.asCurrency()) — needs \(total.asCurrency())", systemImage: "exclamationmark.triangle.fill")
+                            Label("Splits total \(splitsTotal.asCurrency(code: account.wrappedCurrency)) — needs \(total.asCurrency(code: account.wrappedCurrency))", systemImage: "exclamationmark.triangle.fill")
                                 .font(.caption)
                                 .foregroundStyle(.orange)
                         }
