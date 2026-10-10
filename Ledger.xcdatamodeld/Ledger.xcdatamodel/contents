@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<model type="com.apple.IDECoreDataModeler.DataModel" documentVersion="1.0" lastSavedToolsVersion="23507" systemVersion="24B91" minimumToolsVersion="Automatic" sourceLanguage="Swift" userDefinedModelVersionIdentifier="">
+    <entity name="Account" representedClassName="Account" syncable="YES" codeGenerationType="none">
+        <attribute name="balance" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="currency" attributeType="String" defaultValueString="USD"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String"/>
+        <attribute name="type" attributeType="String" defaultValueString="cash"/>
+        <relationship name="assets" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="Asset" inverseName="account" inverseEntity="Asset"/>
+        <relationship name="transactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="CDTransaction" inverseName="account" inverseEntity="CDTransaction"/>
+        <relationship name="recurringTransactions" optional="YES" toMany="YES" deletionRule="Cascade" destinationEntity="RecurringTransaction" inverseName="account" inverseEntity="RecurringTransaction"/>
+    </entity>
+    <entity name="Budget" representedClassName="Budget" syncable="YES" codeGenerationType="none">
+        <attribute name="category" attributeType="String"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="monthlyLimit" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+    </entity>
+    <entity name="RecurringTransaction" representedClassName="RecurringTransaction" syncable="YES" codeGenerationType="none">
+        <attribute name="amount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="category" attributeType="String" defaultValueString="other"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="frequency" attributeType="String" defaultValueString="monthly"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="name" attributeType="String"/>
+        <attribute name="nextDueDate" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <relationship name="account" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Account" inverseName="recurringTransactions" inverseEntity="Account"/>
+    </entity>
+    <entity name="CDTransaction" representedClassName="CDTransaction" syncable="YES" codeGenerationType="none">
+        <attribute name="amount" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="category" attributeType="String" defaultValueString="other"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="date" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="type" attributeType="String" defaultValueString="expense"/>
+        <relationship name="account" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Account" inverseName="transactions" inverseEntity="Account"/>
+    </entity>
+    <entity name="Asset" representedClassName="Asset" syncable="YES" codeGenerationType="none">
+        <attribute name="assetType" attributeType="String" defaultValueString="crypto"/>
+        <attribute name="avgCost" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" attributeType="String"/>
+        <attribute name="quantity" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="symbol" attributeType="String"/>
+        <relationship name="account" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Account" inverseName="assets" inverseEntity="Account"/>
+    </entity>
+    <entity name="JournalEntry" representedClassName="JournalEntry" syncable="YES" codeGenerationType="none">
+        <attribute name="conviction" attributeType="Integer 16" defaultValueString="3" usesScalarValueType="YES"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="direction" attributeType="String" defaultValueString="long"/>
+        <attribute name="entryDate" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="entryPrice" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+        <attribute name="exitDate" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="exitPrice" optional="YES" attributeType="Double" usesScalarValueType="YES"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="notes" optional="YES" attributeType="String"/>
+        <attribute name="outcome" attributeType="String" defaultValueString="open"/>
+        <attribute name="strategyTag" optional="YES" attributeType="String"/>
+        <attribute name="symbol" attributeType="String"/>
+    </entity>
+    <entity name="WatchlistItem" representedClassName="WatchlistItem" syncable="YES" codeGenerationType="none">
+        <attribute name="addedAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="assetType" attributeType="String" defaultValueString="stock"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="name" optional="YES" attributeType="String"/>
+        <attribute name="symbol" attributeType="String"/>
+    </entity>
+    <entity name="PriceAlert" representedClassName="PriceAlert" syncable="YES" codeGenerationType="none">
+        <attribute name="condition" attributeType="String" defaultValueString="above"/>
+        <attribute name="createdAt" optional="YES" attributeType="Date" usesScalarValueType="NO"/>
+        <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
+        <attribute name="isActive" attributeType="Boolean" defaultValueString="YES" usesScalarValueType="YES"/>
+        <attribute name="note" optional="YES" attributeType="String"/>
+        <attribute name="symbol" attributeType="String"/>
+        <attribute name="targetPrice" attributeType="Double" defaultValueString="0.0" usesScalarValueType="YES"/>
+    </entity>
+    <elements>
+        <element name="Account" positionX="-63" positionY="-18" width="128" height="149"/>
+        <element name="Asset" positionX="189" positionY="-18" width="128" height="134"/>
+        <element name="CDTransaction" positionX="-63" positionY="198" width="128" height="164"/>
+        <element name="JournalEntry" positionX="189" positionY="198" width="128" height="224"/>
+        <element name="Budget" positionX="430" positionY="198" width="128" height="104"/>
+        <element name="RecurringTransaction" positionX="430" positionY="-18" width="128" height="194"/>
+        <element name="WatchlistItem" positionX="660" positionY="-18" width="128" height="119"/>
+        <element name="PriceAlert" positionX="660" positionY="198" width="128" height="149"/>
+    </elements>
+</model>

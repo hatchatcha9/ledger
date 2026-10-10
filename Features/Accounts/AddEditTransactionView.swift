@@ -1,0 +1,182 @@
+import SwiftUI
+
+struct AddEditTransactionView: View {
+    @Environment(\.managedObjectContext) private var ctx
+    @Environment(\.dismiss) private var dismiss
+
+    let account: Account
+    var transaction: CDTransaction? = nil   // nil → add mode
+    var onSave: () -> Void = {}
+
+    // Form state
+    @State private var amountText = ""
+    @State private var isExpense = true
+    @State private var category: TransactionCategory = .other
+    @State private var date = Date()
+    @State private var notes = ""
+    @FocusState private var amountFocused: Bool
+
+    private var isEditing: Bool { transaction != nil }
+
+    private var parsedAmount: Double? {
+        Double(amountText.replacingOccurrences(of: ",", with: ""))
+    }
+
+    private var canSave: Bool {
+        guard let v = parsedAmount else { return false }
+        return v > 0
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                // MARK: Amount + direction
+                Section {
+                    // Segmented: Expense / Income
+                    Picker("", selection: $isExpense) {
+                        Text("Expense").tag(true)
+                        Text("Income").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    .onChange(of: isExpense) { _, _ in autoselectCategory() }
+
+                    // Amount field — large, prominent
+                    HStack {
+                        Text(account.wrappedCurrency)
+                            .font(.title2.bold())
+                            .foregroundStyle(.secondary)
+                        TextField("0.00", text: $amountText)
+                            .keyboardType(.decimalPad)
+                            .font(.system(.title2, design: .monospaced).bold())
+                            .focused($amountFocused)
+                    }
+                    .padding(.vertical, 4)
+                } header: {
+                    Text("Amount")
+                }
+
+                // MARK: Details
+                Section("Details") {
+                    Picker("Category", selection: $category) {
+                        ForEach(relevantCategories) { cat in
+                            Label(cat.displayName, systemImage: cat.icon).tag(cat)
+                        }
+                    }
+
+                    DatePicker(
+                        "Date",
+                        selection: $date,
+                        in: ...Date(),          // can't log future transactions
+                        displayedComponents: [.date]
+                    )
+
+                    TextField("Notes (optional)", text: $notes, axis: .vertical)
+                        .lineLimit(2...4)
+                }
+
+                // MARK: Account info (read-only, helpful context)
+                Section {
+                    LabeledContent("Account", value: account.wrappedName)
+                    LabeledContent("Current Balance", value: account.balance.asCurrency(code: account.wrappedCurrency))
+                }
+            }
+            .navigationTitle(isEditing ? "Edit Transaction" : "New Transaction")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: saveTransaction)
+                        .fontWeight(.semibold)
+                        .disabled(!canSave)
+                }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { amountFocused = false }
+                }
+            }
+        }
+        .onAppear {
+            preloadFields()
+            // Auto-focus the amount field so the keyboard appears immediately.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                amountFocused = true
+            }
+        }
+    }
+
+    // MARK: - Helpers
+
+    // Show income-appropriate categories when the toggle flips to Income.
+    private var relevantCategories: [TransactionCategory] {
+        if isExpense {
+            return TransactionCategory.allCases.filter { !$0.isIncome }
+        } else {
+            return TransactionCategory.allCases.filter { $0.isIncome || $0 == .other }
+        }
+    }
+
+    private func autoselectCategory() {
+        // Jump to a sensible default when the user flips the direction toggle.
+        if isExpense {
+            if category.isIncome { category = .other }
+        } else {
+            if !category.isIncome { category = .salary }
+        }
+    }
+
+    private func preloadFields() {
+        guard let tx = transaction else { return }
+        let raw = tx.amount
+        amountText = String(format: "%.2f", abs(raw))
+        isExpense  = raw < 0
+        category   = tx.transactionCategory
+        date       = tx.date ?? .now
+        notes      = tx.wrappedNotes
+    }
+
+    private func saveTransaction() {
+        guard let raw = parsedAmount else { return }
+        // Expenses are negative amounts in the store.
+        let signed = isExpense ? -raw : raw
+
+        if let existing = transaction {
+            // Reverse the old effect on the balance, apply the new one.
+            account.balance -= existing.amount
+            account.balance += signed
+
+            existing.amount   = signed
+            existing.category = category.rawValue
+            existing.type     = isExpense ? "expense" : "income"
+            existing.date     = date
+            existing.notes    = notes
+        } else {
+            let tx       = CDTransaction(context: ctx)
+            tx.id        = UUID()
+            tx.amount    = signed
+            tx.category  = category.rawValue
+            tx.type      = isExpense ? "expense" : "income"
+            tx.date      = date
+            tx.notes     = notes
+            tx.createdAt = .now
+            tx.account   = account
+
+            // Mirror the transaction on the account balance.
+            account.balance += signed
+        }
+
+        try? ctx.save()
+        HapticService.success()
+        onSave()
+        dismiss()
+    }
+}
+
+#Preview {
+    let ctx = PersistenceController.preview.container.viewContext
+    let account = try! ctx.fetch(Account.fetchRequest()).first!
+    return AddEditTransactionView(account: account)
+        .environment(\.managedObjectContext, ctx)
+}
