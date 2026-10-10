@@ -27,12 +27,20 @@ final class ClaudeService {
     }
 
     enum ServiceError: LocalizedError {
+        case rateLimited
+        case serviceUnavailable
         case apiError(String)
         case emptyResponse
         var errorDescription: String? {
             switch self {
-            case .apiError(let msg): return msg
-            case .emptyResponse:     return "No response from Claude"
+            case .rateLimited:
+                return "You've reached today's Ask Claude limit. Try again tomorrow."
+            case .serviceUnavailable:
+                return "Ask Claude is temporarily unavailable. Please try again in a moment."
+            case .apiError(let msg):
+                return msg
+            case .emptyResponse:
+                return "No response from Claude — please try again."
             }
         }
     }
@@ -60,12 +68,24 @@ final class ClaudeService {
 
         req.httpBody = try JSONEncoder().encode(RequestBody(messages: messages, system: system))
 
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await URLSession.shared.data(for: req)
+        } catch {
+            // Network error or proxy unreachable — show a friendly message.
+            throw ServiceError.serviceUnavailable
+        }
 
-        if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            let msg = (try? JSONDecoder().decode(ResponseBody.self, from: data))?.error
-                ?? "HTTP \(http.statusCode)"
-            throw ServiceError.apiError(msg)
+        if let http = response as? HTTPURLResponse {
+            switch http.statusCode {
+            case 200...299: break
+            case 429: throw ServiceError.rateLimited
+            case 500...599: throw ServiceError.serviceUnavailable
+            default:
+                let msg = (try? JSONDecoder().decode(ResponseBody.self, from: data))?.error
+                    ?? "HTTP \(http.statusCode)"
+                throw ServiceError.apiError(msg)
+            }
         }
 
         let decoded = try JSONDecoder().decode(ResponseBody.self, from: data)

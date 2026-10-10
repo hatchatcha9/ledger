@@ -157,8 +157,7 @@ struct SettingsView: View {
                     LabeledContent("Version", value: appVersion)
                     LabeledContent("Build",   value: buildNumber)
                     LabeledContent("Transactions", value: "\(transactions.count)")
-                    // Replace this URL with your real privacy policy page before submitting.
-                    if let url = URL(string: "https://example.com/ledger-privacy") {
+                    if let url = URL(string: "https://hatchatcha9.github.io/ledger/privacy.html") {
                         Link(destination: url) {
                             Label("Privacy Policy", systemImage: "hand.raised")
                         }
