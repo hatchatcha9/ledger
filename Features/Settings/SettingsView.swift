@@ -20,8 +20,6 @@ struct SettingsView: View {
     @AppStorage("anthropicAPIKey")       private var anthropicAPIKey       = ""
 
     @State private var goalAmountText  = ""
-    @State private var apiKeyText      = ""
-    @State private var apiKeyVisible   = false
     @FocusState private var goalFocused: Bool
 
     // Binding shim: DatePicker needs a Date, @AppStorage stores a Double.
@@ -147,42 +145,13 @@ struct SettingsView: View {
 
                 // MARK: Ask Claude
                 Section {
-                    HStack {
-                        if apiKeyVisible {
-                            TextField("sk-ant-…", text: $apiKeyText)
-                                .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
-                                .onSubmit { saveAPIKey() }
-                        } else {
-                            SecureField("sk-ant-…", text: $apiKeyText)
-                                .onSubmit { saveAPIKey() }
-                        }
-                        Button {
-                            apiKeyVisible.toggle()
-                        } label: {
-                            Image(systemName: apiKeyVisible ? "eye.slash" : "eye")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                        if !apiKeyText.isEmpty {
-                            Button("Save") { saveAPIKey() }
-                                .foregroundStyle(Color.ledgerAccent)
-                                .fontWeight(.semibold)
-                        }
-                    }
-                    if anthropicAPIKey.isEmpty {
-                        Label("No key set — Ask Claude will not work.", systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                    } else {
-                        Label("Key saved on this device only.", systemImage: "checkmark.circle")
-                            .font(.caption)
-                            .foregroundStyle(.ledgerPositive)
-                    }
+                    Label("Ask Claude is included — no setup needed.", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.ledgerPositive)
+                        .font(.subheadline)
                 } header: {
                     Text("Ask Claude")
                 } footer: {
-                    Text("Your Anthropic API key is stored only on this device and never leaves it. Get a key at console.anthropic.com.")
+                    Text("AI-powered financial insights are built in. Tap Ask Claude on the Dashboard to get started.")
                 }
 
                 // MARK: About
@@ -210,8 +179,6 @@ struct SettingsView: View {
             if goalAmount > 0 {
                 goalAmountText = String(format: "%.0f", goalAmount)
             }
-            // Show masked placeholder if a key is already saved
-            apiKeyText = anthropicAPIKey.isEmpty ? "" : String(repeating: "•", count: 16)
             syncCurrencyToAppGroup()
         }
         .onChange(of: currencyCode) { _, _ in syncCurrencyToAppGroup() }
@@ -256,17 +223,6 @@ struct SettingsView: View {
         let request = UNNotificationRequest(identifier: "ledger.daily",
                                             content: content, trigger: trigger)
         center.add(request)
-    }
-
-    // MARK: - API key save
-
-    private func saveAPIKey() {
-        let trimmed = apiKeyText.trimmingCharacters(in: .whitespaces)
-        // Ignore if user submitted the masked placeholder
-        guard !trimmed.isEmpty, !trimmed.allSatisfy({ $0 == "•" }) else { return }
-        anthropicAPIKey = trimmed
-        apiKeyText = String(repeating: "•", count: 16)
-        HapticService.success()
     }
 
     // MARK: - Widget sync (Bug 2: @AppStorage uses standard suite; widget reads App Group)

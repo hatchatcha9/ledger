@@ -1,0 +1,15 @@
+# Xcode
+*.xcuserstate
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Secrets — never commit
+Core/Services/Secrets.swift
+
+# macOS
+.DS_Store

@@ -1,14 +1,11 @@
 import Foundation
+import UIKit
 
-// MARK: - API config
-// The API key is never stored in source code. Users enter their own key in
-// Settings → Ask Claude → API Key. It is stored only in UserDefaults (on-device).
-enum ClaudeAPIConfig {
-    static var apiKey: String {
-        UserDefaults.standard.string(forKey: "anthropicAPIKey") ?? ""
-    }
-    static let model = "claude-sonnet-4-6"
-}
+// MARK: - Proxy config
+// Proxy URL and app secret are defined in Secrets.swift (gitignored).
+// Copy Secrets.swift.example → Secrets.swift and fill in the values.
+// ClaudeProxySecrets.proxyBaseURL  — Railway domain from: railway domain
+// ClaudeProxySecrets.appSecret     — must match APP_SECRET on the Railway service
 
 // MARK: - Service
 
@@ -20,74 +17,60 @@ final class ClaudeService {
     }
 
     private struct RequestBody: Codable {
-        let model:      String
-        let max_tokens: Int
-        let system:     String
-        let messages:   [APIMessage]
+        let messages: [APIMessage]
+        let system:   String
     }
 
     private struct ResponseBody: Codable {
-        struct Content: Codable {
-            let type: String
-            let text: String?
-        }
-        let content: [Content]
-
-        struct ErrorBody: Codable {
-            let type:    String
-            let message: String
-        }
-        let error: ErrorBody?
+        let content: String?
+        let error:   String?
     }
 
     enum ServiceError: LocalizedError {
-        case missingAPIKey
         case apiError(String)
         case emptyResponse
         var errorDescription: String? {
             switch self {
-            case .missingAPIKey:      return "No API key set. Add your Anthropic key in Settings → Ask Claude."
-            case .apiError(let msg):  return "API error: \(msg)"
-            case .emptyResponse:      return "No response from Claude"
+            case .apiError(let msg): return msg
+            case .emptyResponse:     return "No response from Claude"
             }
         }
     }
 
-    func send(messages: [APIMessage], system: String) async throws -> String {
-        let key = ClaudeAPIConfig.apiKey
-        guard !key.isEmpty else { throw ServiceError.missingAPIKey }
+    // A stable UUID stored on-device, sent as X-Device-Id for per-device rate limiting.
+    private static var deviceID: String {
+        let key = "ledger.deviceID"
+        if let stored = UserDefaults.standard.string(forKey: key) { return stored }
+        let new = UUID().uuidString
+        UserDefaults.standard.set(new, forKey: key)
+        return new
+    }
 
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
-            throw ServiceError.apiError("Invalid URL")
+    func send(messages: [APIMessage], system: String) async throws -> String {
+        guard let url = URL(string: "\(ClaudeProxySecrets.proxyBaseURL)/chat") else {
+            throw ServiceError.apiError("Proxy URL not configured — copy Secrets.swift.example → Secrets.swift")
         }
 
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(key,                forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01",       forHTTPHeaderField: "anthropic-version")
+        req.setValue("application/json",              forHTTPHeaderField: "Content-Type")
+        req.setValue(ClaudeProxySecrets.appSecret,    forHTTPHeaderField: "x-app-secret")
+        req.setValue(Self.deviceID,                   forHTTPHeaderField: "x-device-id")
+        req.timeoutInterval = 30
 
-        let body = RequestBody(
-            model:      ClaudeAPIConfig.model,
-            max_tokens: 1024,
-            system:     system,
-            messages:   messages
-        )
-        req.httpBody = try JSONEncoder().encode(body)
+        req.httpBody = try JSONEncoder().encode(RequestBody(messages: messages, system: system))
 
         let (data, response) = try await URLSession.shared.data(for: req)
 
         if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
-            let msg = (try? JSONDecoder().decode(ResponseBody.self, from: data))?.error?.message
+            let msg = (try? JSONDecoder().decode(ResponseBody.self, from: data))?.error
                 ?? "HTTP \(http.statusCode)"
             throw ServiceError.apiError(msg)
         }
 
         let decoded = try JSONDecoder().decode(ResponseBody.self, from: data)
-        if let err = decoded.error { throw ServiceError.apiError(err.message) }
-        guard let text = decoded.content.first(where: { $0.type == "text" })?.text else {
-            throw ServiceError.emptyResponse
-        }
+        if let err = decoded.error { throw ServiceError.apiError(err) }
+        guard let text = decoded.content, !text.isEmpty else { throw ServiceError.emptyResponse }
         return text
     }
 }

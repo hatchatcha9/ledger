@@ -48,9 +48,6 @@ struct ContentView: View {
         .onAppear {
             if !hasSeenOnboarding { showOnboarding = true }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .openSettingsTab)) { _ in
-            selectedTab = 4
-        }
         .onReceive(
             NotificationCenter.default.publisher(for: .NSManagedObjectContextDidSave, object: ctx)
         ) { _ in
@@ -64,10 +61,6 @@ struct ContentView: View {
             }
         }
     }
-}
-
-extension Notification.Name {
-    static let openSettingsTab = Notification.Name("ledger.openSettingsTab")
 }
 
 #Preview {
