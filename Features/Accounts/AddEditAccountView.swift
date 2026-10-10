@@ -43,7 +43,11 @@ struct AddEditAccountView: View {
                 // MARK: Currency
                 Section("Currency") {
                     Picker("Currency", selection: $currency) {
-                        ForEach(["USD","EUR","GBP","JPY","CAD","AUD","CHF"], id: \.self) {
+                        ForEach([
+                            "USD","EUR","GBP","JPY","CAD","AUD","CHF",
+                            "CNY","INR","MXN","BRL","KRW","SGD","HKD",
+                            "NOK","SEK","DKK","NZD","ZAR","AED","THB"
+                        ], id: \.self) {
                             Text($0).tag($0)
                         }
                     }

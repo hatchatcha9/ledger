@@ -79,6 +79,31 @@ final class PriceService: ObservableObject {
         isLoading = false
     }
 
+    // Returns ~1 month of daily closes for the given symbol.
+    func fetchHistory(symbol: String, kind: AssetType) async -> [PricePoint] {
+        let ticker = yahooTicker(symbol, kind: kind)
+        var comps  = URLComponents(string: "https://query1.finance.yahoo.com/v8/finance/chart/\(ticker)")!
+        comps.queryItems = [
+            URLQueryItem(name: "interval", value: "1d"),
+            URLQueryItem(name: "range",    value: "1mo"),
+        ]
+        guard let url = comps.url else { return [] }
+        var req = URLRequest(url: url, timeoutInterval: 15)
+        req.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)", forHTTPHeaderField: "User-Agent")
+
+        guard let (data, _) = try? await URLSession.shared.data(for: req),
+              let resp       = try? JSONDecoder().decode(YFChartResponse.self, from: data),
+              let result     = resp.chart.result?.first,
+              let timestamps = result.timestamp,
+              let closes     = result.indicators.quote.first?.close
+        else { return [] }
+
+        return zip(timestamps, closes).compactMap { (ts, price) -> PricePoint? in
+            guard let price else { return nil }
+            return PricePoint(date: Date(timeIntervalSince1970: TimeInterval(ts)), price: price)
+        }
+    }
+
     // MARK: - Ticker helpers
 
     private func yahooTicker(_ symbol: String, kind: AssetType) -> String {
@@ -88,6 +113,12 @@ final class PriceService: ObservableObject {
     private func symbolFromTicker(_ ticker: String) -> String {
         ticker.hasSuffix("-USD") ? String(ticker.dropLast(4)) : ticker
     }
+}
+
+struct PricePoint: Identifiable {
+    let id    = UUID()
+    let date:  Date
+    let price: Double
 }
 
 // MARK: - Decodable response models
@@ -104,4 +135,23 @@ private struct YFQuote: Decodable {
     let symbol:                     String
     let regularMarketPrice:         Double
     let regularMarketChangePercent: Double?  // absent when market hasn't opened yet
+}
+
+// MARK: - Chart response models
+
+private struct YFChartResponse: Decodable {
+    let chart: YFChartResult
+}
+private struct YFChartResult: Decodable {
+    let result: [YFChartItem]?
+}
+private struct YFChartItem: Decodable {
+    let timestamp:  [Int]?
+    let indicators: YFIndicators
+}
+private struct YFIndicators: Decodable {
+    let quote: [YFQuoteData]
+}
+private struct YFQuoteData: Decodable {
+    let close: [Double?]
 }

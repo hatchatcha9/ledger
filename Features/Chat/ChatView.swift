@@ -90,6 +90,15 @@ struct ChatView: View {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
                 }
+                ToolbarItem(placement: .principal) {
+                    VStack(spacing: 1) {
+                        Text("Ask Claude")
+                            .font(.headline)
+                        Text("\(viewModel.messagesRemainingToday) of \(ChatViewModel.dailyLimit) free today")
+                            .font(.caption2)
+                            .foregroundStyle(viewModel.messagesRemainingToday <= 3 ? Color.ledgerNegative : Color.secondary)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     if !viewModel.messages.isEmpty {
                         Button {

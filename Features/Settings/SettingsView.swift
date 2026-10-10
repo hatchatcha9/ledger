@@ -17,6 +17,7 @@ struct SettingsView: View {
     @AppStorage("reminderTimeInterval")  private var reminderTimeInterval: Double = 9 * 3600
     @AppStorage("netWorthGoalEnabled")   private var goalEnabled           = false
     @AppStorage("netWorthGoalAmount")    private var goalAmount: Double     = 0
+    @AppStorage("fireMultiplier")        private var fireMultiplier: Double = 25
     @State private var goalAmountText  = ""
     @FocusState private var goalFocused: Bool
 
@@ -50,10 +51,14 @@ struct SettingsView: View {
                     }
                 }
 
-                // MARK: Budgets
-                Section("Budgets") {
+                // MARK: Budgets & Recurring
+                Section("Budgets & Recurring") {
                     NavigationLink("Monthly Budgets") {
                         BudgetListView()
+                            .environment(\.managedObjectContext, ctx)
+                    }
+                    NavigationLink("Recurring Transactions") {
+                        AllRecurringView()
                             .environment(\.managedObjectContext, ctx)
                     }
                 }
@@ -84,6 +89,20 @@ struct SettingsView: View {
                     if goalEnabled {
                         Text("Your progress toward this target is shown on the Dashboard.")
                     }
+                }
+
+                // MARK: FI/RE Multiplier
+                Section {
+                    Picker("Expenses Multiplier", selection: $fireMultiplier) {
+                        Text("20× — Aggressive").tag(20.0)
+                        Text("25× — Standard").tag(25.0)
+                        Text("30× — Conservative").tag(30.0)
+                        Text("33× — Very Safe (Trinity)").tag(33.0)
+                    }
+                } header: {
+                    Text("FI/RE Target")
+                } footer: {
+                    Text("Your FI/RE number = annual expenses × multiplier. 25× is the classic 4% rule.")
                 }
 
                 // MARK: Security

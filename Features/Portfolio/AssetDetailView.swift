@@ -1,4 +1,5 @@
 import SwiftUI
+import Charts
 
 struct AssetDetailView: View {
     @ObservedObject var asset: Asset
@@ -9,6 +10,8 @@ struct AssetDetailView: View {
 
     @State private var showingAddAlert    = false
     @State private var editingAlert: PriceAlert? = nil
+    @State private var priceHistory: [PricePoint] = []
+    @State private var historyLoading = false
 
     private var activeAlerts: [PriceAlert] {
         let req = PriceAlert.fetchRequest()
@@ -64,6 +67,61 @@ struct AssetDetailView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, Theme.s8)
+
+                // MARK: Price history chart
+                VStack(alignment: .leading, spacing: Theme.s8) {
+                    Text("1-Month Price History")
+                        .font(.caption.bold())
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, Theme.s16)
+                        .padding(.top, Theme.s16)
+
+                    if historyLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 100)
+                    } else if priceHistory.isEmpty {
+                        Text("Price history unavailable")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 100)
+                    } else {
+                        let isUp = (priceHistory.last?.price ?? 0) >= (priceHistory.first?.price ?? 0)
+                        let chartColor = isUp ? Color.ledgerPositive : Color.ledgerNegative
+                        let minPrice = priceHistory.map(\.price).min() ?? 0
+                        let maxPrice = priceHistory.map(\.price).max() ?? 1
+
+                        Chart(priceHistory) { point in
+                            LineMark(
+                                x: .value("Date",  point.date),
+                                y: .value("Price", point.price)
+                            )
+                            .foregroundStyle(chartColor)
+                            .interpolationMethod(.monotone)
+
+                            AreaMark(
+                                x: .value("Date",  point.date),
+                                yStart: .value("Min", minPrice),
+                                yEnd:   .value("Price", point.price)
+                            )
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [chartColor.opacity(0.25), chartColor.opacity(0)],
+                                    startPoint: .top, endPoint: .bottom
+                                )
+                            )
+                            .interpolationMethod(.monotone)
+                        }
+                        .chartYScale(domain: (minPrice * 0.995)...(maxPrice * 1.005))
+                        .chartXAxis(.hidden)
+                        .chartYAxis(.hidden)
+                        .frame(height: 100)
+                        .padding(.horizontal, Theme.s8)
+                        .padding(.bottom, Theme.s8)
+                    }
+                }
+                .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
 
                 // MARK: P&L card
                 VStack(spacing: Theme.s12) {
@@ -204,6 +262,11 @@ struct AssetDetailView: View {
         .sheet(item: $editingAlert) { alert in
             AddEditPriceAlertView(symbol: asset.wrappedSymbol, alert: alert)
                 .environment(\.managedObjectContext, ctx)
+        }
+        .task {
+            historyLoading = true
+            priceHistory = await priceService.fetchHistory(symbol: asset.wrappedSymbol, kind: asset.assetKind)
+            historyLoading = false
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
