@@ -51,6 +51,13 @@ final class ChatViewModel: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty, !isLoading else { return }
 
+        // If the previous send failed, a dangling user message sits at the end.
+        // Replace it with the new message so the history stays valid (no two
+        // consecutive user turns).
+        if messages.last?.role == "user" {
+            messages.removeLast()
+        }
+
         messages.append(ChatMessage(role: "user", text: trimmed))
         incrementDailyCount()
         isLoading    = true
@@ -68,7 +75,8 @@ final class ChatViewModel: ObservableObject {
             )
             messages.append(ChatMessage(role: "assistant", text: reply))
         } catch {
-            messages.removeLast()   // remove the user message that didn't go through
+            // Leave the user message in the list so they can see what failed.
+            // It will be replaced when they retry.
             errorMessage = error.localizedDescription
             HapticService.error()
         }
@@ -91,20 +99,6 @@ final class ChatViewModel: ObservableObject {
 
         == USER'S CURRENT FINANCIAL SNAPSHOT ==
         \(financialContext.isEmpty ? "(No financial data loaded yet.)" : financialContext)
-
-        == QUANT TRADING SYSTEM (BACKGROUND) ==
-        The user runs a separate automated paper-trading system. Live status is included above in \
-        the financial snapshot when available. Background context:
-        - 5 bots on Alpaca paper account: 3 main (BTC/ETH/SOL) + 2 mini (BTC/ETH)
-        - Strategy: 200-day trend filter (long when price > 200d MA, flat otherwise)
-        - Emergency stop: 20% drawdown kills all positions
-        - Fees: 24 bps actual vs 10 bps in backtest (fee drag is real)
-        - Holdout: ETH 18d filter beat BnH (-35.8% vs +5.3%) but Sharpe 0.32 < 0.50 floor
-        - No intraday strategy has survived holdout — daily bars only so far
-        - 3 forward tests running; verdict ~March 2027
-        - Status site: https://quant-system-live.netlify.app
-        - Currently researching Hyperliquid day-trading (liquidation cascade momentum, vol breakout)
-        When asked about trading strategy, the crypto bots, or whether to go live, draw on all of this.
         """
     }
 }

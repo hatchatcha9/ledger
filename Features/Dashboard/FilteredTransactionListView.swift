@@ -7,6 +7,7 @@ struct FilteredTransactionListView: View {
     let transactions: [CDTransaction]
 
     @AppStorage("currencyCode") private var currencyCode = "USD"
+    @State private var searchText = ""
 
     // MARK: - Date grouping (mirrors AccountDetailView)
 
@@ -32,8 +33,18 @@ struct FilteredTransactionListView: View {
         return sameMonth ? .thisMonth : .older
     }
 
+    private var filtered: [CDTransaction] {
+        guard !searchText.isEmpty else { return transactions }
+        let q = searchText.lowercased()
+        return transactions.filter {
+            $0.wrappedNotes.lowercased().contains(q)
+                || $0.transactionCategory.displayName.lowercased().contains(q)
+                || ($0.account?.wrappedName.lowercased().contains(q) ?? false)
+        }
+    }
+
     private var grouped: [(group: Group, txs: [CDTransaction])] {
-        let sorted = transactions.sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
+        let sorted = filtered.sorted { ($0.date ?? .distantPast) > ($1.date ?? .distantPast) }
         var buckets: [Group: [CDTransaction]] = [:]
         for tx in sorted { buckets[group(for: tx.date), default: []].append(tx) }
         return Group.ordered.compactMap { g in
@@ -43,10 +54,10 @@ struct FilteredTransactionListView: View {
     }
 
     private var totalExpenses: Double {
-        transactions.filter { $0.amount < 0 }.reduce(0) { $0 + abs($1.amount) }
+        filtered.filter { $0.amount < 0 }.reduce(0) { $0 + abs($1.amount) }
     }
     private var totalIncome: Double {
-        transactions.filter { $0.amount > 0 }.reduce(0) { $0 + $1.amount }
+        filtered.filter { $0.amount > 0 }.reduce(0) { $0 + $1.amount }
     }
 
     var body: some View {
@@ -68,7 +79,9 @@ struct FilteredTransactionListView: View {
                 }
             }
 
-            if transactions.isEmpty {
+            if filtered.isEmpty && !searchText.isEmpty {
+                ContentUnavailableView.search(text: searchText)
+            } else if transactions.isEmpty {
                 ContentUnavailableView(
                     "No Transactions",
                     systemImage: "tray",
@@ -84,6 +97,8 @@ struct FilteredTransactionListView: View {
                 }
             }
         }
+        .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Search transactions…")
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.large)
     }

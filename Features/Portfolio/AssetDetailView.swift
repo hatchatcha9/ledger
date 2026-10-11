@@ -8,16 +8,20 @@ struct AssetDetailView: View {
     @AppStorage("currencyCode") private var currencyCode = "USD"
     @Environment(\.dismiss) private var dismiss
 
+    @FetchRequest private var activeAlerts: FetchedResults<PriceAlert>
+
     @State private var showingAddAlert    = false
     @State private var editingAlert: PriceAlert? = nil
     @State private var priceHistory: [PricePoint] = []
     @State private var historyLoading = false
 
-    private var activeAlerts: [PriceAlert] {
-        let req = PriceAlert.fetchRequest()
-        req.predicate = NSPredicate(format: "symbol == %@ AND isActive == YES", asset.wrappedSymbol)
-        req.sortDescriptors = [NSSortDescriptor(keyPath: \PriceAlert.createdAt, ascending: false)]
-        return (try? ctx.fetch(req)) ?? []
+    init(asset: Asset) {
+        self.asset = asset
+        self._activeAlerts = FetchRequest(
+            sortDescriptors: [SortDescriptor(\.createdAt, order: .reverse)],
+            predicate: NSPredicate(format: "symbol == %@ AND isActive == YES", asset.wrappedSymbol),
+            animation: .default
+        )
     }
 
     private var currentPrice: Double? { priceService.prices[asset.wrappedSymbol] }

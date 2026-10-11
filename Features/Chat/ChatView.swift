@@ -94,7 +94,7 @@ struct ChatView: View {
                     VStack(spacing: 1) {
                         Text("Ask Claude")
                             .font(.headline)
-                        Text("\(viewModel.messagesRemainingToday) of \(ChatViewModel.dailyLimit) free today")
+                        Text("\(viewModel.messagesRemainingToday) of \(ChatViewModel.dailyLimit) free · resets midnight")
                             .font(.caption2)
                             .foregroundStyle(viewModel.messagesRemainingToday <= 3 ? Color.ledgerNegative : Color.secondary)
                     }
