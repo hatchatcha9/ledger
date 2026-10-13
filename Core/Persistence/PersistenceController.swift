@@ -3,7 +3,6 @@ import CoreData
 struct PersistenceController {
     static let shared = PersistenceController()
 
-    // In-memory store for Xcode Previews — never touches disk.
     static let preview: PersistenceController = {
         let controller = PersistenceController(inMemory: true)
         let ctx = controller.container.viewContext
@@ -11,39 +10,13 @@ struct PersistenceController {
         return controller
     }()
 
-    let container: NSPersistentCloudKitContainer
-
-    // App Group used to share the SQLite store with the widget extension.
-    // Change this to match the group ID in Xcode → Signing & Capabilities.
-    static let appGroupID = "group.ledger"
-
-    // CloudKit container identifier — must match the iCloud container you
-    // add in Xcode → Signing & Capabilities → iCloud → CloudKit.
-    static let cloudKitContainerID = "iCloud.com.hatchatcha9.ledger"
+    let container: NSPersistentContainer
 
     init(inMemory: Bool = false) {
-        container = NSPersistentCloudKitContainer(name: "Ledger")
+        container = NSPersistentContainer(name: "Ledger")
 
         if inMemory {
-            // Previews: in-memory store, no CloudKit sync.
-            let desc = NSPersistentStoreDescription()
-            desc.url = URL(fileURLWithPath: "/dev/null")
-            desc.cloudKitContainerOptions = nil
-            container.persistentStoreDescriptions = [desc]
-        } else if let groupURL = FileManager.default
-            .containerURL(forSecurityApplicationGroupIdentifier: Self.appGroupID)?
-            .appendingPathComponent("Ledger.sqlite") {
-            let desc = NSPersistentStoreDescription(url: groupURL)
-            // Enable CloudKit sync.
-            let ckOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: Self.cloudKitContainerID
-            )
-            desc.cloudKitContainerOptions = ckOptions
-            // Required for CloudKit mirroring and remote-change notifications.
-            desc.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-            desc.setOption(true as NSNumber,
-                           forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
-            container.persistentStoreDescriptions = [desc]
+            container.persistentStoreDescriptions.first?.url = URL(fileURLWithPath: "/dev/null")
         }
 
         container.loadPersistentStores { _, error in
@@ -52,21 +25,16 @@ struct PersistenceController {
             }
         }
 
-        // Merge remote CloudKit changes into the view context automatically.
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
     }
 
-    // MARK: - Save helper
-    // Call this after any batch of mutations; the view context is saved on the
-    // main queue so no concurrency issues.
     func save() {
         let ctx = container.viewContext
         guard ctx.hasChanges else { return }
         do {
             try ctx.save()
         } catch {
-            // Surface the error properly in a real app.
             print("Core Data save error: \(error)")
         }
     }
@@ -74,7 +42,6 @@ struct PersistenceController {
 
 // MARK: - Preview seed
 private func seedPreviewData(into ctx: NSManagedObjectContext) {
-    // Brokerage account
     let brokerage = Account(context: ctx)
     brokerage.id = UUID()
     brokerage.name = "Fidelity Brokerage"
@@ -83,7 +50,6 @@ private func seedPreviewData(into ctx: NSManagedObjectContext) {
     brokerage.currency = "USD"
     brokerage.createdAt = .now
 
-    // Crypto wallet
     let wallet = Account(context: ctx)
     wallet.id = UUID()
     wallet.name = "Ledger Nano"
@@ -92,7 +58,6 @@ private func seedPreviewData(into ctx: NSManagedObjectContext) {
     wallet.currency = "USD"
     wallet.createdAt = .now
 
-    // A few sample transactions on the brokerage account
     let categories: [(String, TransactionCategory, Double)] = [
         ("Coffee", .food, -6.50),
         ("Dividend — AAPL", .dividends, 18.75),
@@ -110,7 +75,6 @@ private func seedPreviewData(into ctx: NSManagedObjectContext) {
         tx.account = brokerage
     }
 
-    // A sample asset
     let btc = Asset(context: ctx)
     btc.id = UUID()
     btc.symbol = "BTC"
@@ -120,7 +84,6 @@ private func seedPreviewData(into ctx: NSManagedObjectContext) {
     btc.assetType = AssetType.crypto.rawValue
     btc.account = wallet
 
-    // A journal entry
     let entry = JournalEntry(context: ctx)
     entry.id = UUID()
     entry.symbol = "BTC"
