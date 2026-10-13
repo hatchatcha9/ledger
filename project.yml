@@ -2,7 +2,7 @@ name: Ledger
 options:
   bundleIdPrefix: com.hatchatcha9
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "17.0"
   xcodeVersion: "15.4"
   createIntermediateGroups: true
 
@@ -11,7 +11,7 @@ settings:
     SWIFT_VERSION: "5.9"
     MARKETING_VERSION: "1.0"
     CURRENT_PROJECT_VERSION: "1"
-    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
 
 targets:
   Ledger:

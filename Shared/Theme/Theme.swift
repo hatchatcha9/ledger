@@ -4,11 +4,18 @@ import SwiftUI
 // Defined in Swift so they work without an Asset Catalog on first run.
 // Once you add named colors to Assets.xcassets, swap these for Color("name").
 extension Color {
-    static let ledgerAccent   = Color(red: 0.0,   green: 0.478, blue: 1.0)   // iOS system blue
-    static let ledgerPositive = Color(red: 0.196, green: 0.796, blue: 0.384) // green
-    static let ledgerNegative = Color(red: 1.0,   green: 0.231, blue: 0.188) // red
+    static let ledgerAccent   = Color(red: 0.0,   green: 0.478, blue: 1.0)
+    static let ledgerPositive = Color(red: 0.196, green: 0.796, blue: 0.384)
+    static let ledgerNegative = Color(red: 1.0,   green: 0.231, blue: 0.188)
     static let ledgerSurface  = Color(.secondarySystemBackground)
     static let ledgerGrouped  = Color(.systemGroupedBackground)
+}
+
+// Allows .ledgerAccent / .ledgerPositive / .ledgerNegative in foregroundStyle() contexts.
+extension ShapeStyle where Self == Color {
+    static var ledgerAccent:   Color { Color(red: 0.0,   green: 0.478, blue: 1.0) }
+    static var ledgerPositive: Color { Color(red: 0.196, green: 0.796, blue: 0.384) }
+    static var ledgerNegative: Color { Color(red: 1.0,   green: 0.231, blue: 0.188) }
 }
 
 // MARK: - Design Tokens
