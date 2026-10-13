@@ -1,0 +1,89 @@
+name: Ledger
+options:
+  bundleIdPrefix: com.hatchatcha9
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.4"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+
+targets:
+  Ledger:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: App
+      - path: Core
+      - path: CoreData
+      - path: Features
+      - path: Shared
+      - path: Ledger.xcdatamodeld
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hatchatcha9.ledger
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Unlock Ledger to see your finances."
+        CODE_SIGN_ENTITLEMENTS: Ledger.entitlements
+    entitlements:
+      path: Ledger.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.ledger
+    dependencies:
+      - target: LedgerWidget
+        embed: true
+
+  LedgerWidget:
+    type: app-extension
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources:
+      - path: LedgerWidget/LedgerWidget.swift
+      - path: Core/Persistence/PersistenceController.swift
+      - path: Core/Services/HapticService.swift
+      - path: Shared/Theme/Theme.swift
+      - path: Shared/Models/AccountType.swift
+      - path: Shared/Models/AssetType.swift
+      - path: Shared/Models/TransactionCategory.swift
+      - path: Shared/Models/RecurringFrequency.swift
+      - path: Shared/Models/TradeOutcome.swift
+      - path: CoreData/Account/Account+CoreDataClass.swift
+      - path: CoreData/Account/Account+CoreDataProperties.swift
+      - path: CoreData/Account/Account+Extensions.swift
+      - path: CoreData/Asset/Asset+CoreDataClass.swift
+      - path: CoreData/Asset/Asset+CoreDataProperties.swift
+      - path: CoreData/Asset/Asset+Extensions.swift
+      - path: CoreData/Budget/Budget+CoreDataClass.swift
+      - path: CoreData/Budget/Budget+CoreDataProperties.swift
+      - path: CoreData/Budget/Budget+Extensions.swift
+      - path: CoreData/RecurringTransaction/RecurringTransaction+CoreDataClass.swift
+      - path: CoreData/RecurringTransaction/RecurringTransaction+CoreDataProperties.swift
+      - path: CoreData/RecurringTransaction/RecurringTransaction+Extensions.swift
+      - path: CoreData/CDTransaction/CDTransaction+CoreDataClass.swift
+      - path: CoreData/CDTransaction/CDTransaction+CoreDataProperties.swift
+      - path: CoreData/CDTransaction/CDTransaction+Extensions.swift
+      - path: CoreData/JournalEntry/JournalEntry+CoreDataClass.swift
+      - path: CoreData/JournalEntry/JournalEntry+CoreDataProperties.swift
+      - path: CoreData/JournalEntry/JournalEntry+Extensions.swift
+      - path: CoreData/WatchlistItem/WatchlistItem+CoreDataClass.swift
+      - path: CoreData/WatchlistItem/WatchlistItem+CoreDataProperties.swift
+      - path: CoreData/WatchlistItem/WatchlistItem+Extensions.swift
+      - path: CoreData/PriceAlert/PriceAlert+CoreDataClass.swift
+      - path: CoreData/PriceAlert/PriceAlert+CoreDataProperties.swift
+      - path: CoreData/PriceAlert/PriceAlert+Extensions.swift
+      - path: Ledger.xcdatamodeld
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.hatchatcha9.ledger.widget
+        CODE_SIGN_ENTITLEMENTS: LedgerWidget/LedgerWidget.entitlements
+    entitlements:
+      path: LedgerWidget/LedgerWidget.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.ledger
