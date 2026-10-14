@@ -125,7 +125,7 @@ struct CSVImportView: View {
                         Label("All transactions already exist in this account.",
                               systemImage: "checkmark.circle.fill")
                             .font(.caption)
-                            .foregroundStyle(.ledgerPositive)
+                            .foregroundStyle(Color.ledgerPositive)
                     }
                 }
                 .padding(.vertical, Theme.s8)
@@ -248,8 +248,8 @@ struct CSVImportView: View {
             }
             defer { url.stopAccessingSecurityScopedResource() }
 
-            guard let text = try? String(contentsOf: url, encoding: .utf8)
-                          ?? String(contentsOf: url, encoding: .isoLatin1) else {
+            guard let text = (try? String(contentsOf: url, encoding: .utf8))
+                          ?? (try? String(contentsOf: url, encoding: .isoLatin1)) else {
                 importState = .error("Couldn't read the file. Make sure it's a plain CSV text file.")
                 return
             }
@@ -348,7 +348,7 @@ private struct PreviewRow: View {
 
             Text(row.amount.asCurrency())
                 .font(Theme.monoCaption())
-                .foregroundStyle(row.isDuplicate ? .secondary : (row.amount < 0 ? .ledgerNegative : .ledgerPositive))
+                .foregroundStyle(row.isDuplicate ? Color.secondary : (row.amount < 0 ? Color.ledgerNegative : Color.ledgerPositive))
         }
         .padding(.vertical, Theme.s4)
     }

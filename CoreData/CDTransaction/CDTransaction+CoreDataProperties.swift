@@ -7,13 +7,14 @@ extension CDTransaction {
         NSFetchRequest<CDTransaction>(entityName: "CDTransaction")
     }
 
-    @NSManaged public var id: UUID?
-    @NSManaged public var amount: Double
-    @NSManaged public var category: String?
-    @NSManaged public var type: String?
-    @NSManaged public var date: Date?
-    @NSManaged public var notes: String?
-    @NSManaged public var createdAt: Date?
+    @NSManaged public var id:         UUID?
+    @NSManaged public var amount:     Double
+    @NSManaged public var category:   String?
+    @NSManaged public var type:       String?
+    @NSManaged public var date:       Date?
+    @NSManaged public var notes:      String?
+    @NSManaged public var createdAt:  Date?
+    @NSManaged public var splitsJSON: String?
 
     // Inverse relationship back to the owning account.
     @NSManaged public var account: Account?
