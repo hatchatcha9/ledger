@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 struct AddEditTransactionView: View {
     @Environment(\.managedObjectContext) private var ctx
@@ -67,7 +67,7 @@ struct AddEditTransactionView: View {
                     }
                     .pickerStyle(.segmented)
                     .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-                    .onChange(of: isExpense) { _, _ in autoselectCategory() }
+                    .onChange(of: isExpense) { _ in autoselectCategory() }
 
                     // Amount field — large, prominent
                     HStack {

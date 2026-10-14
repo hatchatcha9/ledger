@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 struct AddEditAssetView: View {
     @Environment(\.managedObjectContext) private var ctx
@@ -45,7 +45,7 @@ struct AddEditAssetView: View {
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .focused($symbolFocused)
-                        .onChange(of: symbol) { _, new in
+                        .onChange(of: symbol) { new in
                             symbol = new.uppercased()
                         }
 

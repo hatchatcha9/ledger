@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import CoreData
 
 struct AccountDetailView: View {
@@ -76,7 +76,7 @@ struct AccountDetailView: View {
                     Text(account.balance.asCurrency(code: account.wrappedCurrency))
                         .font(Theme.monoLargeTitle())
                         .contentTransition(.numericText())
-                        .animation(.spring(.smooth), value: account.balance)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: account.balance)
                     Text("Current Balance")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
@@ -203,7 +203,9 @@ struct AccountDetailView: View {
                 }
             } else if filteredTransactions.isEmpty {
                 Section {
-                    ContentUnavailableView.search(text: transactionSearch)
+                    if #available(iOS 17, *) {
+                        ContentUnavailableView.search(text: transactionSearch)
+                    }
                 } header: {
                     transactionsSectionHeader
                 }

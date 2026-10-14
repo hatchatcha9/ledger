@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 struct AddEditJournalEntryView: View {
     @Environment(\.managedObjectContext) private var ctx
@@ -64,7 +64,7 @@ struct AddEditJournalEntryView: View {
                         .textInputAutocapitalization(.characters)
                         .autocorrectionDisabled()
                         .focused($symbolFocused)
-                        .onChange(of: symbol) { _, new in symbol = new.uppercased() }
+                        .onChange(of: symbol) { new in symbol = new.uppercased() }
                 }
 
                 // MARK: Entry
@@ -93,7 +93,7 @@ struct AddEditJournalEntryView: View {
                             Label(o.displayName, systemImage: o.icon).tag(o)
                         }
                     }
-                    .onChange(of: outcome) { _, new in
+                    .onChange(of: outcome) { new in
                         // Pre-fill exit date to entry date when closing the trade.
                         if new != .open && exitDate < entryDate { exitDate = entryDate }
                     }

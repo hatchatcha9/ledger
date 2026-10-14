@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 struct ChatView: View {
     @ObservedObject var viewModel: ChatViewModel
@@ -49,10 +49,10 @@ struct ChatView: View {
                         }
                         .padding(Theme.s16)
                         .padding(.bottom, Theme.s8)
-                        .animation(.spring(.smooth), value: viewModel.messages.count)
-                        .animation(.spring(.smooth), value: viewModel.isLoading)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.messages.count)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.isLoading)
                     }
-                    .onChange(of: viewModel.messages.count) { _, _ in scrollToBottom(proxy: proxy) }
+                    .onChange(of: viewModel.messages.count) { _ in scrollToBottom(proxy: proxy) }
                     .onChange(of: viewModel.isLoading)     { _, _ in scrollToBottom(proxy: proxy) }
                 }
 
@@ -76,7 +76,7 @@ struct ChatView: View {
                             .font(.system(size: 32))
                             .foregroundStyle(canSend ? Color.ledgerAccent : Color.secondary)
                             .scaleEffect(canSend ? 1.0 : 0.88)
-                            .animation(.spring(.bouncy(duration: 0.22)), value: canSend)
+                            .animation(.spring(response: 0.22, dampingFraction: 0.7), value: canSend)
                     }
                     .disabled(!canSend)
                 }
@@ -138,9 +138,9 @@ struct ChatView: View {
     private func scrollToBottom(proxy: ScrollViewProxy) {
         let anchor: UnitPoint = .bottom
         if viewModel.isLoading {
-            withAnimation(.spring(.smooth(duration: 0.3))) { proxy.scrollTo("typing", anchor: anchor) }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { proxy.scrollTo("typing", anchor: anchor) }
         } else if let last = viewModel.messages.last {
-            withAnimation(.spring(.smooth(duration: 0.3))) { proxy.scrollTo(last.id, anchor: anchor) }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { proxy.scrollTo(last.id, anchor: anchor) }
         }
     }
 

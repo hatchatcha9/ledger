@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import CoreData
 
 struct AccountsView: View {
@@ -28,7 +28,7 @@ struct AccountsView: View {
                             Text(netWorth.asCurrency())
                                 .font(Theme.monoLargeTitle())
                                 .contentTransition(.numericText())
-                                .animation(.spring(.smooth), value: netWorth)
+                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: netWorth)
                             Text("Total Net Worth")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -84,13 +84,15 @@ struct AccountsView: View {
             }
             .overlay {
                 if accounts.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Accounts", systemImage: "creditcard")
-                    } description: {
-                        Text("Add an account to start tracking your money.")
-                    } actions: {
-                        Button("Add Account") { showingAddAccount = true }
-                            .buttonStyle(.borderedProminent)
+                    if #available(iOS 17, *) {
+                        ContentUnavailableView {
+                            Label("No Accounts", systemImage: "creditcard")
+                        } description: {
+                            Text("Add an account to start tracking your money.")
+                        } actions: {
+                            Button("Add Account") { showingAddAccount = true }
+                                .buttonStyle(.borderedProminent)
+                        }
                     }
                 }
             }
@@ -144,7 +146,7 @@ private struct AccountRow: View {
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
-                    .animation(.spring(.smooth), value: account.balance)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: account.balance)
 
                 if let pct = change30d {
                     HStack(spacing: 2) {

@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 // MARK: - Semantic Colors
 // Defined in Swift so they work without an Asset Catalog on first run.
@@ -50,7 +50,7 @@ struct ScaleButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? pressedScale : 1.0)
-            .animation(.spring(.snappy(duration: 0.2)), value: configuration.isPressed)
+            .animation(.spring(response: 0.2, dampingFraction: 0.9), value: configuration.isPressed)
     }
 }
 

@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 struct SplitEditorView: View {
     @Environment(\.dismiss) private var dismiss
@@ -124,7 +124,7 @@ private struct SplitRowEditor: View {
                     .multilineTextAlignment(.trailing)
                     .frame(width: 100)
                     .focused($focused)
-                    .onChange(of: amountText) { _, v in
+                    .onChange(of: amountText) { v in
                         if let d = Double(v.replacingOccurrences(of: ",", with: "")) {
                             split.amount = d
                         }

@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import StoreKit
 
 // Root of the app. Each tab owns its own NavigationStack so the back-stack
@@ -38,7 +38,7 @@ struct ContentView: View {
                 .tag(4)
         }
         .tint(Color.ledgerAccent)
-        .onChange(of: priceService.prices) { _, newPrices in
+        .onChange(of: priceService.prices) { newPrices in
             alertsSvc.checkAndFire(prices: newPrices, in: ctx)
         }
         .fullScreenCover(isPresented: $showOnboarding) {

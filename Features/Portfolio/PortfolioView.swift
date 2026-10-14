@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import CoreData
 import Charts
 
@@ -219,11 +219,13 @@ struct PortfolioView: View {
             }
             .overlay {
                 if assets.isEmpty {
-                    ContentUnavailableView(
-                        "No Assets",
-                        systemImage: "chart.pie",
-                        description: Text("Add assets via an Account to track them here.")
-                    )
+                    if #available(iOS 17, *) {
+                        ContentUnavailableView(
+                            "No Assets",
+                            systemImage: "chart.pie",
+                            description: Text("Add assets via an Account to track them here.")
+                        )
+                    }
                 }
             }
         }
@@ -277,7 +279,7 @@ struct PortfolioView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
                 .contentTransition(.numericText())
-                .animation(.spring(.smooth), value: value)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
             Text(label)
                 .font(.system(size: 9))
                 .foregroundStyle(.tertiary)
@@ -395,13 +397,13 @@ private struct WatchlistRow: View {
                     Text(price.asCurrency(code: currencyCode))
                         .font(Theme.monoBody())
                         .contentTransition(.numericText())
-                        .animation(.spring(.smooth), value: price)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: price)
                     if let dc = dailyChange {
                         Text(dc.asChangePercent())
                             .font(.caption)
                             .foregroundStyle(Color.changeColor(for: dc))
                             .contentTransition(.numericText())
-                            .animation(.spring(.smooth), value: dc)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: dc)
                     }
                     // Target price indicator
                     if item.hasTargetPrice {
@@ -463,7 +465,7 @@ private struct AssetRow: View {
                     Text(price.asCurrency(code: currencyCode))
                         .font(Theme.monoBody())
                         .contentTransition(.numericText())
-                        .animation(.spring(.smooth), value: price)
+                        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: price)
 
                     let pnl = asset.unrealisedPnLPercent(currentPrice: price)
                     HStack(spacing: 2) {
@@ -471,14 +473,14 @@ private struct AssetRow: View {
                             Text(dc.asChangePercent())
                                 .foregroundStyle(Color.changeColor(for: dc))
                                 .contentTransition(.numericText())
-                                .animation(.spring(.smooth), value: dc)
+                                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: dc)
                         }
                         Text("·")
                             .foregroundStyle(.tertiary)
                         Text(pnl.asChangePercent())
                             .foregroundStyle(Color.changeColor(for: pnl))
                             .contentTransition(.numericText())
-                            .animation(.spring(.smooth), value: pnl)
+                            .animation(.spring(response: 0.4, dampingFraction: 0.8), value: pnl)
                     }
                     .font(.caption)
                 } else if isLoading {

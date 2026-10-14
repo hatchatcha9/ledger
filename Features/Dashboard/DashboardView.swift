@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import Charts
 
 // MARK: - Local chart-data types
@@ -920,7 +920,7 @@ struct DashboardView: View {
                 Text(totalBalance.asCurrency(code: currencyCode))
                     .font(Theme.monoSubhead())
                     .contentTransition(.numericText())
-                    .animation(.spring(.smooth), value: totalBalance)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: totalBalance)
                 Text("of")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -932,7 +932,7 @@ struct DashboardView: View {
                     .font(Theme.monoSubhead().bold())
                     .foregroundStyle(goalProgress >= 1 ? .ledgerPositive : .ledgerAccent)
                     .contentTransition(.numericText())
-                    .animation(.spring(.smooth), value: goalProgress)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.8), value: goalProgress)
             }
 
             GeometryReader { geo in
@@ -943,7 +943,7 @@ struct DashboardView: View {
                     RoundedRectangle(cornerRadius: 4)
                         .fill(goalProgress >= 1 ? Color.ledgerPositive : Color.ledgerAccent)
                         .frame(width: geo.size.width * goalProgress, height: 8)
-                        .animation(.spring(.smooth(duration: 0.8)), value: goalProgress)
+                        .animation(.spring(response: 0.8, dampingFraction: 0.8), value: goalProgress)
                 }
             }
             .frame(height: 8)
@@ -1013,7 +1013,7 @@ struct DashboardView: View {
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(color)
                                 .frame(width: geo.size.width * ratio, height: 5)
-                                .animation(.spring(.smooth(duration: 0.7)), value: ratio)
+                                .animation(.spring(response: 0.7, dampingFraction: 0.8), value: ratio)
                         }
                     }
                     .frame(height: 5)
@@ -1123,7 +1123,7 @@ struct DashboardView: View {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(fireProgress >= 1 ? Color.ledgerPositive : Color.ledgerAccent)
                             .frame(width: geo.size.width * fireProgress, height: 8)
-                            .animation(.spring(.smooth(duration: 0.8)), value: fireProgress)
+                            .animation(.spring(response: 0.8, dampingFraction: 0.8), value: fireProgress)
                     }
                 }
                 .frame(height: 8)

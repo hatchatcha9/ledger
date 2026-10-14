@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import CoreData
 import UserNotifications
 
@@ -77,7 +77,7 @@ struct SettingsView: View {
                             TextField("Target amount", text: $goalAmountText)
                                 .keyboardType(.decimalPad)
                                 .focused($goalFocused)
-                                .onChange(of: goalAmountText) { _, v in
+                                .onChange(of: goalAmountText) { v in
                                     // Bug 6: always update so clearing the field resets the stored goal
                                     goalAmount = Double(v.replacingOccurrences(of: ",", with: "")) ?? 0
                                 }
@@ -197,8 +197,8 @@ struct SettingsView: View {
             }
             syncCurrencyToAppGroup()
         }
-        .onChange(of: currencyCode) { _, _ in syncCurrencyToAppGroup() }
-        .onChange(of: dailyReminderEnabled) { _, enabled in
+        .onChange(of: currencyCode) { _ in syncCurrencyToAppGroup() }
+        .onChange(of: dailyReminderEnabled) { enabled in
             if enabled {
                 requestNotificationPermission()
             } else {
@@ -206,7 +206,7 @@ struct SettingsView: View {
                     .removePendingNotificationRequests(withIdentifiers: ["ledger.daily"])
             }
         }
-        .onChange(of: reminderTimeInterval) { _, _ in
+        .onChange(of: reminderTimeInterval) { _ in
             if dailyReminderEnabled { scheduleReminder() }
         }
     }

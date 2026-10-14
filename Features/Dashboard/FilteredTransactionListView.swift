@@ -80,13 +80,17 @@ struct FilteredTransactionListView: View {
             }
 
             if filtered.isEmpty && !searchText.isEmpty {
-                ContentUnavailableView.search(text: searchText)
+                if #available(iOS 17, *) {
+                    ContentUnavailableView.search(text: searchText)
+                }
             } else if transactions.isEmpty {
-                ContentUnavailableView(
-                    "No Transactions",
-                    systemImage: "tray",
-                    description: Text("No transactions match this filter.")
-                )
+                if #available(iOS 17, *) {
+                    ContentUnavailableView(
+                        "No Transactions",
+                        systemImage: "tray",
+                        description: Text("No transactions match this filter.")
+                    )
+                }
             } else {
                 ForEach(grouped, id: \.group) { item in
                     Section(item.group.rawValue) {

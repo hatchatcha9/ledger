@@ -81,11 +81,13 @@ struct AllRecurringView: View {
             }
 
             if rules.isEmpty {
-                ContentUnavailableView(
-                    "No Recurring Rules",
-                    systemImage: "repeat.circle",
-                    description: Text("Add recurring transactions from individual account screens.")
-                )
+                if #available(iOS 17, *) {
+                    ContentUnavailableView(
+                        "No Recurring Rules",
+                        systemImage: "repeat.circle",
+                        description: Text("Add recurring transactions from individual account screens.")
+                    )
+                }
             }
         }
         .navigationTitle("Recurring Transactions")

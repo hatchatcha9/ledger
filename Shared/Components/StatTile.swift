@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 
 // A card that shows one key metric with a label and an optional change indicator.
 // Used on the Dashboard (net worth, today's P&L) and the Portfolio screen.
@@ -32,7 +32,7 @@ struct StatTile: View {
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
                 .contentTransition(.numericText())
-                .animation(.spring(.smooth), value: value)
+                .animation(.spring(response: 0.4, dampingFraction: 0.8), value: value)
 
             if let change {
                 HStack(spacing: 4) {

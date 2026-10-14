@@ -1,4 +1,4 @@
-import SwiftUI
+﻿import SwiftUI
 import CoreData
 import UserNotifications
 
@@ -97,7 +97,7 @@ struct AddEditPriceAlertView: View {
         try? ctx.save()
         HapticService.success()
         UNUserNotificationCenter.current()
-            .requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            .requestAuthorization(options: [.alert, .sound]) { _ in }
         dismiss()
     }
 }
