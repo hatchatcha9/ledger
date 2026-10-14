@@ -131,23 +131,29 @@ struct JournalView: View {
             }
             .overlay {
                 if entries.isEmpty {
-                    ContentUnavailableView {
-                        Label("No Entries", systemImage: "book.closed")
-                    } description: {
-                        Text("Log your trades to track patterns and build your edge.")
-                    } actions: {
-                        Button("Log First Trade") { showingAddSheet = true }
-                            .buttonStyle(.borderedProminent)
+                    if #available(iOS 17, *) {
+                        ContentUnavailableView {
+                            Label("No Entries", systemImage: "book.closed")
+                        } description: {
+                            Text("Log your trades to track patterns and build your edge.")
+                        } actions: {
+                            Button("Log First Trade") { showingAddSheet = true }
+                                .buttonStyle(.borderedProminent)
+                        }
                     }
                 } else if filteredEntries.isEmpty {
                     if !searchText.isEmpty {
-                        ContentUnavailableView.search(text: searchText)
+                        if #available(iOS 17, *) {
+                            ContentUnavailableView.search(text: searchText)
+                        }
                     } else if let filter = outcomeFilter {
-                        ContentUnavailableView(
-                            "No \(filter.displayName) Trades",
-                            systemImage: filter.icon,
-                            description: Text("No journal entries match this filter.")
-                        )
+                        if #available(iOS 17, *) {
+                            ContentUnavailableView(
+                                "No \(filter.displayName) Trades",
+                                systemImage: filter.icon,
+                                description: Text("No journal entries match this filter.")
+                            )
+                        }
                     }
                 }
             }
