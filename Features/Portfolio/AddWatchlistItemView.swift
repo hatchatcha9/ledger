@@ -43,7 +43,7 @@ struct AddWatchlistItemView: View {
                     Text("Watchlist items are tracked at live market prices but not counted in your portfolio value.")
                 }
 
-                Section("Investment Thesis") {
+                Section {
                     TextField("Why are you watching this? (optional)", text: $thesisText, axis: .vertical)
                         .lineLimit(2...5)
                     HStack {
@@ -52,6 +52,8 @@ struct AddWatchlistItemView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
+                } header: {
+                    Text("Investment Thesis")
                 } footer: {
                     Text("Your thesis and target price are private notes to help you stay disciplined.")
                 }

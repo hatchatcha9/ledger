@@ -40,7 +40,7 @@ struct EditWatchlistItemView: View {
                     }
                 }
 
-                Section("Investment Thesis") {
+                Section {
                     TextField("Why are you watching this? (optional)", text: $thesisText, axis: .vertical)
                         .lineLimit(2...5)
                     HStack {
@@ -49,6 +49,8 @@ struct EditWatchlistItemView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.trailing)
                     }
+                } header: {
+                    Text("Investment Thesis")
                 } footer: {
                     Text("Your thesis and target price are private notes to help you stay disciplined.")
                 }
