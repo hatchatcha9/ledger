@@ -203,7 +203,7 @@ private struct MessageBubble: View {
     private var attributed: AttributedString {
         (try? AttributedString(
             markdown: message.text,
-            options: .init(interpretedSyntax: .inlinesOnlyPreservingWhitespace)
+            options: .init(interpretedSyntax: .inlinesOnly)
         )) ?? AttributedString(message.text)
     }
 
