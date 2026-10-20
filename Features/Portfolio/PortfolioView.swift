@@ -301,21 +301,23 @@ struct PortfolioView: View {
                 .padding(.top, Theme.s12)
 
             HStack(spacing: Theme.s16) {
-                Chart(slices) { slice in
-                    SectorMark(
-                        angle: .value("Value", slice.value),
-                        innerRadius: .ratio(0.55),
-                        angularInset: 2
+                if #available(iOS 17, *) {
+                    Chart(slices) { slice in
+                        SectorMark(
+                            angle: .value("Value", slice.value),
+                            innerRadius: .ratio(0.55),
+                            angularInset: 2
+                        )
+                        .foregroundStyle(by: .value("Type", slice.type.displayName))
+                        .cornerRadius(4)
+                    }
+                    .chartForegroundStyleScale(
+                        domain: slices.map { $0.type.displayName },
+                        range:  colors.prefix(slices.count).map { $0 }
                     )
-                    .foregroundStyle(by: .value("Type", slice.type.displayName))
-                    .cornerRadius(4)
+                    .chartLegend(.hidden)
+                    .frame(width: 110, height: 110)
                 }
-                .chartForegroundStyleScale(
-                    domain: slices.map { $0.type.displayName },
-                    range:  colors.prefix(slices.count).map { $0 }
-                )
-                .chartLegend(.hidden)
-                .frame(width: 110, height: 110)
 
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(slices.enumerated()), id: \.offset) { i, slice in

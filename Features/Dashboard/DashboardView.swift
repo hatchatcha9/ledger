@@ -149,8 +149,14 @@ struct DashboardView: View {
                     #endif
                 } label: {
                     HStack(spacing: Theme.s8) {
-                        Image(systemName: "sparkles")
-                            .symbolEffect(.pulse, options: .repeating)
+                        Group {
+                            if #available(iOS 17, *) {
+                                Image(systemName: "sparkles")
+                                    .symbolEffect(.pulse, options: .repeating)
+                            } else {
+                                Image(systemName: "sparkles")
+                            }
+                        }
                         Text("Ask Claude")
                             .fontWeight(.semibold)
                     }

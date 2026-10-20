@@ -53,7 +53,7 @@ struct ChatView: View {
                         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: viewModel.isLoading)
                     }
                     .onChange(of: viewModel.messages.count) { _ in scrollToBottom(proxy: proxy) }
-                    .onChange(of: viewModel.isLoading)     { _, _ in scrollToBottom(proxy: proxy) }
+                    .onChange(of: viewModel.isLoading)     { _ in scrollToBottom(proxy: proxy) }
                 }
 
                 Divider()

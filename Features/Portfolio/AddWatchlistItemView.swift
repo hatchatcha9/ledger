@@ -35,8 +35,8 @@ struct AddWatchlistItemView: View {
                             .multilineTextAlignment(.trailing)
                     }
                     Picker("Type", selection: $assetType) {
-                        ForEach(AssetType.allCases) {
-                            Label($0.displayName, systemImage: $0.icon).tag($0)
+                        ForEach(AssetType.allCases) { type in
+                            Label(type.displayName, systemImage: type.icon).tag(type)
                         }
                     }
                 } footer: {

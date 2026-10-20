@@ -2,6 +2,19 @@ import WidgetKit
 import SwiftUI
 import CoreData
 
+// MARK: - Compat helper
+
+private extension View {
+    @ViewBuilder
+    func widgetBackground(_ color: Color) -> some View {
+        if #available(iOS 17, *) {
+            self.containerBackground(color, for: .widget)
+        } else {
+            self.background(color)
+        }
+    }
+}
+
 // MARK: - App Group suite name
 // Set this to match the App Group you configure in Xcode → Signing & Capabilities
 // for BOTH the main app target and this widget extension (e.g. "group.com.you.ledger").
@@ -152,7 +165,7 @@ struct SmallWidgetView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .containerBackground(Color(.systemBackground), for: .widget)
+        .widgetBackground(Color(.systemBackground))
     }
 }
 
@@ -220,7 +233,7 @@ struct MediumWidgetView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .containerBackground(Color(.systemBackground), for: .widget)
+        .widgetBackground(Color(.systemBackground))
     }
 }
 
