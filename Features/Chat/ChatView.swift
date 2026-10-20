@@ -201,10 +201,7 @@ private struct MessageBubble: View {
 
     // Parse markdown once; fall back to plain text if parsing fails.
     private var attributed: AttributedString {
-        (try? AttributedString(
-            markdown: message.text,
-            options: .init(interpretedSyntax: .inlinesOnly)
-        )) ?? AttributedString(message.text)
+        (try? AttributedString(markdown: message.text)) ?? AttributedString(message.text)
     }
 
     var body: some View {
