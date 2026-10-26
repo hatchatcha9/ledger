@@ -11,7 +11,7 @@ struct ContentView: View {
     @AppStorage("hasSeenOnboarding")       private var hasSeenOnboarding = false
     @AppStorage("txCountAtLastReview")     private var txCountAtLastReview = 0
     @State private var showOnboarding = false
-    @State private var selectedTab = 0
+    @State private var selectedTab    = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
@@ -29,17 +29,20 @@ struct ContentView: View {
                 .tabItem { Label("Portfolio", systemImage: "chart.pie.fill") }
                 .tag(2)
 
-            JournalView()
-                .tabItem { Label("Journal", systemImage: "book.closed.fill") }
+            BotsView()
+                .tabItem { Label("Bots", systemImage: "bolt.fill") }
                 .tag(3)
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            JournalView()
+                .tabItem { Label("Journal", systemImage: "book.closed.fill") }
                 .tag(4)
         }
         .tint(Color.ledgerAccent)
         .onChange(of: priceService.prices) { newPrices in
             alertsSvc.checkAndFire(prices: newPrices, in: ctx)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openBotsTab)) { _ in
+            selectedTab = 3
         }
         .fullScreenCover(isPresented: $showOnboarding) {
             OnboardingView(isPresented: $showOnboarding)

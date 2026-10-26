@@ -5,6 +5,7 @@ import Charts
 struct PortfolioView: View {
     @Environment(\.managedObjectContext) private var ctx
     @EnvironmentObject private var priceService: PriceService
+    @EnvironmentObject private var quantStatus: QuantStatusService
 
     @FetchRequest(
         sortDescriptors: [SortDescriptor(\.symbol)],
@@ -101,6 +102,17 @@ struct PortfolioView: View {
                         allocationChart
                             .listRowInsets(EdgeInsets())
                             .listRowBackground(Color.clear)
+                    }
+                }
+
+                // MARK: Quant bots teaser
+                if quantStatus.status != nil || quantStatus.isFetching {
+                    Section {
+                        QuantBotCard(onTapOpenBots: {
+                            NotificationCenter.default.post(name: .openBotsTab, object: nil)
+                        })
+                        .listRowInsets(EdgeInsets())
+                        .listRowBackground(Color.clear)
                     }
                 }
 
@@ -202,6 +214,9 @@ struct PortfolioView: View {
             }
             .task(id: (assets.map(\.wrappedSymbol) + watchlist.map(\.wrappedSymbol)).joined()) {
                 await priceService.refresh(assets: Array(assets), watchlist: Array(watchlist), currencies: accountCurrencies)
+            }
+            .task {
+                await quantStatus.fetch()
             }
             .sheet(isPresented: $showingAddWatchlist) {
                 AddWatchlistItemView()
@@ -504,9 +519,7 @@ private struct AssetRow: View {
 
 #Preview {
     PortfolioView()
-        .environment(
-            \.managedObjectContext,
-            PersistenceController.preview.container.viewContext
-        )
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
         .environmentObject(PriceService())
+        .environmentObject(QuantStatusService())
 }

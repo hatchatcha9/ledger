@@ -6,9 +6,7 @@ struct LedgerApp: App {
     @StateObject private var prices      = PriceService()
     @StateObject private var alertsSvc   = PriceAlertsService()
     @StateObject private var authGate    = AuthGate()
-    #if DEBUG
     @StateObject private var quantStatus = QuantStatusService()
-    #endif
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -20,9 +18,7 @@ struct LedgerApp: App {
                         .environment(\.managedObjectContext, persistence.container.viewContext)
                         .environmentObject(prices)
                         .environmentObject(alertsSvc)
-                        #if DEBUG
                         .environmentObject(quantStatus)
-                        #endif
                 } else {
                     LockView()
                 }

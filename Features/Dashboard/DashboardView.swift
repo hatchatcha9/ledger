@@ -69,10 +69,7 @@ struct DashboardView: View {
     ) private var journalEntries: FetchedResults<JournalEntry>
 
     @EnvironmentObject private var prices: PriceService
-
-    #if DEBUG
     @EnvironmentObject private var quantStatus: QuantStatusService
-    #endif
 
     @State private var selectedRange: TimeRange = .thirtyDays
     @State private var showingChat = false
@@ -89,6 +86,7 @@ struct DashboardView: View {
     @State private var drillCategory: TransactionCategory? = nil
     @State private var drillMonth: DateComponents? = nil
     @State private var showAllTransactions = false
+    @State private var showingSettings     = false
 
     // MARK: - Body
 
@@ -138,15 +136,22 @@ struct DashboardView: View {
                 .padding(.bottom, 80)   // room for the floating button
             }
             .navigationTitle("Dashboard")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showingSettings = true } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingSettings) {
+                NavigationStack { SettingsView() }
+            }
             .background(Color.ledgerGrouped)
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     HapticService.impact(.medium)
                     chatVM.financialContext = buildFinancialContext()
                     showingChat = true
-                    #if DEBUG
-                    Task { await quantStatus.fetch() }
-                    #endif
                 } label: {
                     HStack(spacing: Theme.s8) {
                         Group {
@@ -175,7 +180,10 @@ struct DashboardView: View {
                 .buttonStyle(ScaleButtonStyle(pressedScale: 0.93))
                 .padding(.trailing, Theme.s16)
                 .padding(.bottom, Theme.s16)
-                .onAppear { chatButtonPulse = true }
+                .onAppear {
+                    chatButtonPulse = true
+                    Task { await quantStatus.fetch() }
+                }
             }
             // navigationDestination must be inside the NavigationStack context.
             .navigationDestination(isPresented: Binding(
@@ -288,15 +296,10 @@ struct DashboardView: View {
             lines.append("\nNET WORTH GOAL: \(goalAmount.asCurrency(code: currencyCode)) (\(String(format: "%.1f", progress))% reached)")
         }
 
-        // Live quant status — developer build only
-        #if DEBUG
         if let qs = quantStatus.status {
             lines.append("\nQUANT SYSTEM (LIVE):")
             lines.append(qs.contextString)
-        } else {
-            lines.append("\nQUANT SYSTEM: (status unavailable — offline or not yet deployed)")
         }
-        #endif
 
         return lines.joined(separator: "\n")
     }
@@ -1225,10 +1228,7 @@ struct DashboardView: View {
 
 #Preview {
     DashboardView()
-        .environment(
-            \.managedObjectContext,
-            PersistenceController.preview.container.viewContext
-        )
+        .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
         .environmentObject(PriceService())
         .environmentObject(QuantStatusService())
 }

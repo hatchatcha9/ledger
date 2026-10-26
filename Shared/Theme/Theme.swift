@@ -65,13 +65,20 @@ extension Color {
 }
 
 // MARK: - Currency formatting
+private var _currencyFormatters: [String: NumberFormatter] = [:]
+private func currencyFormatter(code: String) -> NumberFormatter {
+    if let f = _currencyFormatters[code] { return f }
+    let f = NumberFormatter()
+    f.numberStyle = .currency
+    f.currencyCode = code
+    _currencyFormatters[code] = f
+    return f
+}
+
 extension Double {
     /// "$12,450.00" — uses the device locale's currency symbol.
     func asCurrency(code: String = "USD") -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .currency
-        formatter.currencyCode = code
-        return formatter.string(from: NSNumber(value: self)) ?? "$0.00"
+        currencyFormatter(code: code).string(from: NSNumber(value: self)) ?? "$0.00"
     }
 
     /// "+3.42%" or "-1.05%"
