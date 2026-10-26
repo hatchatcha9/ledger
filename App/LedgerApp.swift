@@ -3,10 +3,11 @@ import SwiftUI
 @main
 struct LedgerApp: App {
     let persistence = PersistenceController.shared
-    @StateObject private var prices      = PriceService()
-    @StateObject private var alertsSvc   = PriceAlertsService()
-    @StateObject private var authGate    = AuthGate()
-    @StateObject private var quantStatus = QuantStatusService()
+    @StateObject private var prices          = PriceService()
+    @StateObject private var alertsSvc       = PriceAlertsService()
+    @StateObject private var authGate        = AuthGate()
+    @StateObject private var quantStatus     = QuantStatusService()
+    @StateObject private var sentimentService = SentimentService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -19,6 +20,7 @@ struct LedgerApp: App {
                         .environmentObject(prices)
                         .environmentObject(alertsSvc)
                         .environmentObject(quantStatus)
+                        .environmentObject(sentimentService)
                 } else {
                     LockView()
                 }

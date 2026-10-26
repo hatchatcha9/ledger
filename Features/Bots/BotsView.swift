@@ -2,7 +2,8 @@ import SwiftUI
 import Charts
 
 struct BotsView: View {
-    @EnvironmentObject private var quantStatus: QuantStatusService
+    @EnvironmentObject private var quantStatus:      QuantStatusService
+    @EnvironmentObject private var sentimentService: SentimentService
     @StateObject private var dataService = QuantDataService()
 
     @State private var selectedSymbol: String = "BTC/USD"
@@ -492,6 +493,9 @@ struct BotsView: View {
                         .font(.subheadline.bold())
                     Text("Chart").font(.caption2).foregroundStyle(.secondary)
                 }
+
+                let ticker = selectedSymbol.components(separatedBy: "/").first ?? selectedSymbol
+                SentimentBadge(data: sentimentService.sentiment[ticker])
 
                 Spacer()
 

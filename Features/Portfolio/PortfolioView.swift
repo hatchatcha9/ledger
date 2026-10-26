@@ -22,6 +22,8 @@ struct PortfolioView: View {
         animation: .default
     ) private var accounts: FetchedResults<Account>
 
+    @EnvironmentObject private var sentimentService: SentimentService
+
     @AppStorage("currencyCode") private var currencyCode = "USD"
     @State private var showingAddWatchlist   = false
     @State private var showingAddAsset       = false
@@ -122,13 +124,15 @@ struct PortfolioView: View {
                         NavigationLink {
                             AssetDetailView(asset: asset)
                                 .environmentObject(priceService)
+                                .environmentObject(sentimentService)
                         } label: {
                             AssetRow(
                                 asset: asset,
                                 currentPrice:  priceService.prices[asset.wrappedSymbol],
                                 dailyChange:   priceService.changes[asset.wrappedSymbol],
                                 currencyCode:  currencyCode,
-                                isLoading:     priceService.isLoading
+                                isLoading:     priceService.isLoading,
+                                sentimentData: sentimentService.sentiment[asset.wrappedSymbol]
                             )
                         }
                     }
@@ -180,10 +184,11 @@ struct PortfolioView: View {
                         ForEach(watchlist) { item in
                             WatchlistRow(
                                 item: item,
-                                currentPrice: priceService.prices[item.wrappedSymbol],
-                                dailyChange:  priceService.changes[item.wrappedSymbol],
-                                currencyCode: currencyCode,
-                                isLoading:    priceService.isLoading
+                                currentPrice:  priceService.prices[item.wrappedSymbol],
+                                dailyChange:   priceService.changes[item.wrappedSymbol],
+                                currencyCode:  currencyCode,
+                                isLoading:     priceService.isLoading,
+                                sentimentData: sentimentService.sentiment[item.wrappedSymbol]
                             )
                             .contentShape(Rectangle())
                             .onTapGesture { editingWatchlistItem = item }
@@ -229,6 +234,10 @@ struct PortfolioView: View {
             }
             .task {
                 await quantStatus.fetch()
+            }
+            .task(id: (assets.map(\.wrappedSymbol) + watchlist.map(\.wrappedSymbol)).joined() + "sentiment") {
+                let allTickers = assets.map(\.wrappedSymbol) + watchlist.map(\.wrappedSymbol)
+                await sentimentService.fetch(symbols: allTickers)
             }
             .sheet(isPresented: $showingAddWatchlist) {
                 AddWatchlistItemView()
@@ -383,10 +392,11 @@ struct PortfolioView: View {
 
 private struct WatchlistRow: View {
     @ObservedObject var item: WatchlistItem
-    let currentPrice: Double?
-    let dailyChange:  Double?
-    let currencyCode: String
-    var isLoading: Bool = false
+    let currentPrice:  Double?
+    let dailyChange:   Double?
+    let currencyCode:  String
+    var isLoading:     Bool = false
+    var sentimentData: SentimentData? = nil
 
     var body: some View {
         HStack(spacing: Theme.s12) {
@@ -400,6 +410,7 @@ private struct WatchlistRow: View {
                 Text(item.wrappedSymbol).font(.body.bold())
                 Text(item.wrappedName.isEmpty ? item.assetKind.displayName : item.wrappedName)
                     .font(.caption).foregroundStyle(.secondary)
+                SentimentBadge(data: sentimentData)
                 if !item.wrappedThesis.isEmpty {
                     Text(item.wrappedThesis)
                         .font(.caption2)
@@ -452,10 +463,11 @@ private struct WatchlistRow: View {
 
 private struct AssetRow: View {
     @ObservedObject var asset: Asset
-    let currentPrice: Double?
-    let dailyChange:  Double?
-    var currencyCode: String = "USD"
-    var isLoading: Bool = false
+    let currentPrice:  Double?
+    let dailyChange:   Double?
+    var currencyCode:  String = "USD"
+    var isLoading:     Bool = false
+    var sentimentData: SentimentData? = nil
 
     var body: some View {
         HStack(spacing: Theme.s12) {
@@ -466,13 +478,14 @@ private struct AssetRow: View {
                 .frame(width: 36, height: 36)
                 .background(Color.ledgerAccent.opacity(0.1), in: RoundedRectangle(cornerRadius: Theme.radiusS))
 
-            // Symbol + name
+            // Symbol + name + sentiment
             VStack(alignment: .leading, spacing: 2) {
                 Text(asset.wrappedSymbol)
                     .font(.body.bold())
                 Text(asset.wrappedName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                SentimentBadge(data: sentimentData)
             }
 
             Spacer()
@@ -523,4 +536,5 @@ private struct AssetRow: View {
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
         .environmentObject(PriceService())
         .environmentObject(QuantStatusService())
+        .environmentObject(SentimentService())
 }

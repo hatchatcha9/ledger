@@ -3,7 +3,8 @@ import Charts
 
 struct AssetDetailView: View {
     @ObservedObject var asset: Asset
-    @EnvironmentObject private var priceService: PriceService
+    @EnvironmentObject private var priceService:     PriceService
+    @EnvironmentObject private var sentimentService: SentimentService
     @Environment(\.managedObjectContext) private var ctx
     @AppStorage("currencyCode") private var currencyCode = "USD"
     @Environment(\.dismiss) private var dismiss
@@ -165,6 +166,44 @@ struct AssetDetailView: View {
                 .padding(Theme.s16)
                 .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
 
+                // MARK: Social Sentiment
+                if let s = sentimentService.sentiment[asset.wrappedSymbol] {
+                    VStack(alignment: .leading, spacing: Theme.s12) {
+                        Label("Social Sentiment", systemImage: "person.2.wave.2")
+                            .font(.subheadline.bold())
+
+                        HStack(spacing: Theme.s16) {
+                            // Score bar
+                            GeometryReader { geo in
+                                ZStack(alignment: .leading) {
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(Color(.systemFill))
+                                        .frame(height: 6)
+                                    let pct = (s.score + 1) / 2   // map -1..+1 → 0..1
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .fill(s.label.color)
+                                        .frame(width: geo.size.width * pct, height: 6)
+                                }
+                            }
+                            .frame(height: 6)
+
+                            SentimentBadge(data: s)
+                        }
+
+                        HStack {
+                            Text("\(s.mentions) watching")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Text("via StockTwits")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(Theme.s16)
+                    .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+                }
+
                 // MARK: Price Alerts
                 let alerts = activeAlerts
                 VStack(alignment: .leading, spacing: Theme.s12) {
@@ -272,6 +311,9 @@ struct AssetDetailView: View {
             priceHistory = await priceService.fetchHistory(symbol: asset.wrappedSymbol, kind: asset.assetKind)
             historyLoading = false
         }
+        .task {
+            await sentimentService.fetch(symbols: [asset.wrappedSymbol])
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if priceService.isLoading {
@@ -310,4 +352,5 @@ struct AssetDetailView: View {
     }
     .environment(\.managedObjectContext, ctx)
     .environmentObject(PriceService())
+    .environmentObject(SentimentService())
 }
