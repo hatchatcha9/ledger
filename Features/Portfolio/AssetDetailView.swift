@@ -233,7 +233,9 @@ struct AssetDetailView: View {
                                 Text(insight)
                                     .font(.subheadline)
                                     .foregroundStyle(.primary)
+                                    .lineSpacing(4)
                                     .fixedSize(horizontal: false, vertical: true)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                             }
                         }
                         .padding(Theme.s16)

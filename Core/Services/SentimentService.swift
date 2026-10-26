@@ -107,18 +107,23 @@ final class SentimentService: ObservableObject {
             .joined(separator: "\n")
 
         let prompt = """
-        You are a financial analyst. Here are the most recent social media posts about \(symbol):
+        Here are the most recent social media posts about \(symbol):
 
         \(numbered)
 
-        In 2-3 sentences max: What is the dominant narrative? What specific price-moving catalysts are being discussed (earnings, regulation, whale moves, macro)? Give a plain-English verdict on how this crowd sentiment could reshape \(symbol)'s price in the near term. Be direct and specific, not generic.
+        In 2-3 plain sentences: What is the dominant narrative? What specific catalysts are being discussed (regulation, whale moves, macro, earnings)? How could this crowd sentiment move \(symbol)'s price near-term? Be direct and specific. No markdown, no bold, no bullet points — plain sentences only.
         """
 
         do {
-            let insight = try await claude.send(
+            let raw = try await claude.send(
                 messages: [ClaudeService.APIMessage(role: "user", content: prompt)],
-                system: "You are a concise financial analyst. Respond in 2-3 sentences only."
+                system: "You are a concise financial analyst. Respond in 2-3 plain sentences only. No markdown formatting, no bold, no headers, no lists."
             )
+            let insight = raw
+                .replacingOccurrences(of: "**", with: "")
+                .replacingOccurrences(of: "##", with: "")
+                .replacingOccurrences(of: "# ", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             if sentiment[symbol] != nil {
                 sentiment[symbol]?.claudeInsight = insight
             }
