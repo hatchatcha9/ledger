@@ -3,11 +3,13 @@ import SwiftUI
 // MARK: - Models
 
 struct SentimentData {
-    let symbol:    String
-    let score:     Double    // -1.0 (very bearish) to +1.0 (very bullish)
-    let label:     SentimentLabel
-    let mentions:  Int
-    let updatedAt: Date
+    let symbol:        String
+    let score:         Double       // -1.0 (very bearish) to +1.0 (very bullish)
+    let label:         SentimentLabel
+    let mentions:      Int
+    let topMessages:   [String]     // up to 10 recent post bodies
+    var claudeInsight: String?      // nil until Claude has analyzed them
+    let updatedAt:     Date
 }
 
 enum SentimentLabel: String {
@@ -44,6 +46,7 @@ private struct STResponse: Decodable {
     }
 
     struct STMessage: Decodable {
+        let body:     String?
         let entities: STEntities?
         struct STEntities: Decodable {
             let sentiment: STSentiment?
@@ -56,17 +59,19 @@ private struct STResponse: Decodable {
 
 @MainActor
 final class SentimentService: ObservableObject {
-    @Published private(set) var sentiment:  [String: SentimentData] = [:]
-    @Published private(set) var isFetching  = false
-    @Published private(set) var lastError:  String?
+    @Published private(set) var sentiment:   [String: SentimentData] = [:]
+    @Published private(set) var isFetching   = false
+    @Published private(set) var isAnalyzing: [String: Bool] = [:]
+    @Published private(set) var lastError:   String?
 
     private var lastFetchedAt: [String: Date] = [:]
-    private static let cacheTTL: TimeInterval = 600   // 10 minutes
+    private static let cacheTTL: TimeInterval = 600
 
-    // Crypto tickers use the ".X" suffix on StockTwits
     private static let cryptoTickers: Set<String> = [
         "BTC","ETH","SOL","DOGE","ADA","AVAX","DOT","LINK","MATIC","XRP","LTC","BCH","ATOM","UNI"
     ]
+
+    private let claude = ClaudeService()
 
     func fetch(symbols: [String]) async {
         let tickers = symbols.map { $0.uppercased() }
@@ -81,15 +86,49 @@ final class SentimentService: ObservableObject {
 
         for ticker in stale {
             if let data = await fetchStockTwits(ticker: ticker) {
-                sentiment[ticker]      = data
-                lastFetchedAt[ticker]  = Date()
+                sentiment[ticker]     = data
+                lastFetchedAt[ticker] = Date()
+
+                if !data.topMessages.isEmpty {
+                    Task { await analyzeWithClaude(symbol: ticker, messages: data.topMessages) }
+                }
             }
         }
 
         isFetching = false
     }
 
-    // nonisolated so URLSession runs off the main actor (won't block UI)
+    func analyzeWithClaude(symbol: String, messages: [String]) async {
+        guard !messages.isEmpty else { return }
+        isAnalyzing[symbol] = true
+
+        let numbered = messages.prefix(10).enumerated()
+            .map { "\($0.offset + 1). \($0.element)" }
+            .joined(separator: "\n")
+
+        let prompt = """
+        You are a financial analyst. Here are the most recent social media posts about \(symbol):
+
+        \(numbered)
+
+        In 2-3 sentences max: What is the dominant narrative? What specific price-moving catalysts are being discussed (earnings, regulation, whale moves, macro)? Give a plain-English verdict on how this crowd sentiment could reshape \(symbol)'s price in the near term. Be direct and specific, not generic.
+        """
+
+        do {
+            let insight = try await claude.send(
+                messages: [ClaudeService.APIMessage(role: "user", content: prompt)],
+                system: "You are a concise financial analyst. Respond in 2-3 sentences only."
+            )
+            if sentiment[symbol] != nil {
+                sentiment[symbol]?.claudeInsight = insight
+            }
+        } catch {
+            // Graceful failure — leave claudeInsight nil
+        }
+
+        isAnalyzing[symbol] = false
+    }
+
     private nonisolated func fetchStockTwits(ticker: String) async -> SentimentData? {
         let stSymbol = Self.cryptoTickers.contains(ticker) ? "\(ticker).X" : ticker
         guard let url = URL(string: "https://api.stocktwits.com/api/2/streams/symbol/\(stSymbol).json")
@@ -110,12 +149,15 @@ final class SentimentService: ObservableObject {
             let mentions = decoded.symbol?.watchlistCount ?? total
             let label: SentimentLabel = score > 0.1 ? .bullish : score < -0.1 ? .bearish : .neutral
 
+            let topMessages = messages.prefix(10).compactMap { $0.body }.filter { !$0.isEmpty }
+
             return SentimentData(
-                symbol:    ticker,
-                score:     score,
-                label:     label,
-                mentions:  mentions,
-                updatedAt: .now
+                symbol:      ticker,
+                score:       score,
+                label:       label,
+                mentions:    mentions,
+                topMessages: topMessages,
+                updatedAt:   .now
             )
         } catch { return nil }
     }

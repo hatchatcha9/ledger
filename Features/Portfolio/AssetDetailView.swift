@@ -202,6 +202,53 @@ struct AssetDetailView: View {
                     }
                     .padding(Theme.s16)
                     .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+
+                    // MARK: Market Intelligence (Claude AI analysis)
+                    let analyzing = sentimentService.isAnalyzing[asset.wrappedSymbol] == true
+                    if analyzing || s.claudeInsight != nil {
+                        VStack(alignment: .leading, spacing: Theme.s12) {
+                            HStack(spacing: Theme.s8) {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(Color.ledgerAccent)
+                                Text("Market Intelligence")
+                                    .font(.subheadline.bold())
+                                Spacer()
+                                Text("AI")
+                                    .font(.caption2.bold())
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.ledgerAccent.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(Color.ledgerAccent)
+                            }
+
+                            if analyzing {
+                                HStack(spacing: Theme.s8) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("Reading the crowd...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else if let insight = s.claudeInsight {
+                                Text(insight)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.primary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                        .padding(Theme.s16)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.ledgerAccent.opacity(0.08), Color.ledgerSurface],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ),
+                            in: RoundedRectangle(cornerRadius: Theme.radiusM)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.radiusM)
+                                .stroke(Color.ledgerAccent.opacity(0.18), lineWidth: 1)
+                        )
+                    }
                 }
 
                 // MARK: Price Alerts
