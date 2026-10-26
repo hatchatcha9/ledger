@@ -154,6 +154,18 @@ struct PortfolioView: View {
                     if !watchlist.isEmpty { EmptyView() } else { updatedFooter }
                 }
 
+                // Empty holdings placeholder — inside the list so QuantBotCard stays visible
+                if assets.isEmpty {
+                    Section {
+                        Label("No assets yet — add one via an account.", systemImage: "chart.pie")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 8)
+                            .listRowBackground(Color.clear)
+                    }
+                }
+
                 // MARK: Watchlist
                 Section {
                     if watchlist.isEmpty {
@@ -230,17 +242,6 @@ struct PortfolioView: View {
                 if let acct = quickAddAccount ?? accounts.first {
                     QuickAddPositionView(accounts: Array(accounts), selectedAccount: acct)
                         .environment(\.managedObjectContext, ctx)
-                }
-            }
-            .overlay {
-                if assets.isEmpty {
-                    if #available(iOS 17, *) {
-                        ContentUnavailableView(
-                            "No Assets",
-                            systemImage: "chart.pie",
-                            description: Text("Add assets via an Account to track them here.")
-                        )
-                    }
                 }
             }
         }
