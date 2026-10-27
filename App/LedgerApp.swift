@@ -8,6 +8,7 @@ struct LedgerApp: App {
     @StateObject private var authGate        = AuthGate()
     @StateObject private var quantStatus     = QuantStatusService()
     @StateObject private var sentimentService = SentimentService()
+    @StateObject private var signalService   = QuantSignalService()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -21,6 +22,7 @@ struct LedgerApp: App {
                         .environmentObject(alertsSvc)
                         .environmentObject(quantStatus)
                         .environmentObject(sentimentService)
+                        .environmentObject(signalService)
                 } else {
                     LockView()
                 }

@@ -5,6 +5,7 @@ struct AssetDetailView: View {
     @ObservedObject var asset: Asset
     @EnvironmentObject private var priceService:     PriceService
     @EnvironmentObject private var sentimentService: SentimentService
+    @EnvironmentObject private var signalService:    QuantSignalService
     @Environment(\.managedObjectContext) private var ctx
     @AppStorage("currencyCode") private var currencyCode = "USD"
     @Environment(\.dismiss) private var dismiss
@@ -15,6 +16,8 @@ struct AssetDetailView: View {
     @State private var editingAlert: PriceAlert? = nil
     @State private var priceHistory: [PricePoint] = []
     @State private var historyLoading = false
+    @State private var socialTab = 0
+    @State private var showingLogTrade = false
 
     init(asset: Asset) {
         self.asset = asset
@@ -166,91 +169,107 @@ struct AssetDetailView: View {
                 .padding(Theme.s16)
                 .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
 
-                // MARK: Social Sentiment
+                // MARK: Bot Signal Card
+                if let sig = signalService.signals[asset.wrappedSymbol] {
+                    tradingSignalCard(sig)
+                }
+
+                // MARK: Social Sentiment + Posts
                 if let s = sentimentService.sentiment[asset.wrappedSymbol] {
+                    let analyzing = sentimentService.isAnalyzing[asset.wrappedSymbol] == true
                     VStack(alignment: .leading, spacing: Theme.s12) {
-                        Label("Social Sentiment", systemImage: "person.2.wave.2")
-                            .font(.subheadline.bold())
-
-                        HStack(spacing: Theme.s16) {
-                            // Score bar
-                            GeometryReader { geo in
-                                ZStack(alignment: .leading) {
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(Color(.systemFill))
-                                        .frame(height: 6)
-                                    let pct = (s.score + 1) / 2   // map -1..+1 → 0..1
-                                    RoundedRectangle(cornerRadius: 3)
-                                        .fill(s.label.color)
-                                        .frame(width: geo.size.width * pct, height: 6)
-                                }
+                        HStack(spacing: Theme.s8) {
+                            Label("Social Sentiment", systemImage: "person.2.wave.2")
+                                .font(.subheadline.bold())
+                            Spacer()
+                            Picker("", selection: $socialTab) {
+                                Text("Summary").tag(0)
+                                Text("Posts").tag(1)
                             }
-                            .frame(height: 6)
-
-                            SentimentBadge(data: s)
+                            .pickerStyle(.segmented)
+                            .frame(width: 150)
                         }
 
-                        HStack {
-                            Text("\(s.mentions) watching")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Spacer()
-                            Text("via StockTwits")
-                                .font(.caption2)
-                                .foregroundStyle(.tertiary)
+                        if socialTab == 0 {
+                            // Summary tab: score bar + Market Intelligence
+                            HStack(spacing: Theme.s16) {
+                                GeometryReader { geo in
+                                    ZStack(alignment: .leading) {
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(Color(.systemFill))
+                                            .frame(height: 6)
+                                        let pct = (s.score + 1) / 2
+                                        RoundedRectangle(cornerRadius: 3)
+                                            .fill(s.label.color)
+                                            .frame(width: geo.size.width * pct, height: 6)
+                                    }
+                                }
+                                .frame(height: 6)
+                                SentimentBadge(data: s)
+                            }
+
+                            HStack {
+                                Text("\(s.mentions) watching")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Text("via StockTwits")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+
+                            if analyzing || s.claudeInsight != nil {
+                                Divider()
+                                HStack(spacing: Theme.s8) {
+                                    Image(systemName: "sparkles")
+                                        .foregroundStyle(Color.ledgerAccent)
+                                    Text("Market Intelligence")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(Color.ledgerAccent)
+                                    Spacer()
+                                    Text("AI")
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 6).padding(.vertical, 2)
+                                        .background(Color.ledgerAccent.opacity(0.12), in: Capsule())
+                                        .foregroundStyle(Color.ledgerAccent)
+                                }
+                                if analyzing {
+                                    HStack(spacing: Theme.s8) {
+                                        ProgressView().scaleEffect(0.8)
+                                        Text("Reading the crowd...")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                } else if let insight = s.claudeInsight {
+                                    Text(insight)
+                                        .font(.subheadline)
+                                        .foregroundStyle(.primary)
+                                        .lineSpacing(4)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                        } else {
+                            // Posts tab: StockTwits message feed
+                            if s.posts.isEmpty {
+                                Text("No recent posts")
+                                    .font(.caption).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, Theme.s8)
+                            } else {
+                                let visiblePosts = Array(s.posts.prefix(10))
+                                VStack(spacing: 0) {
+                                    ForEach(visiblePosts) { post in
+                                        stockTwitsPostRow(post)
+                                        if post.id != visiblePosts.last?.id {
+                                            Divider().padding(.leading, 44)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                     .padding(Theme.s16)
                     .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
-
-                    // MARK: Market Intelligence (Claude AI analysis)
-                    let analyzing = sentimentService.isAnalyzing[asset.wrappedSymbol] == true
-                    if analyzing || s.claudeInsight != nil {
-                        VStack(alignment: .leading, spacing: Theme.s12) {
-                            HStack(spacing: Theme.s8) {
-                                Image(systemName: "sparkles")
-                                    .foregroundStyle(Color.ledgerAccent)
-                                Text("Market Intelligence")
-                                    .font(.subheadline.bold())
-                                Spacer()
-                                Text("AI")
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.ledgerAccent.opacity(0.12), in: Capsule())
-                                    .foregroundStyle(Color.ledgerAccent)
-                            }
-
-                            if analyzing {
-                                HStack(spacing: Theme.s8) {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("Reading the crowd...")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                            } else if let insight = s.claudeInsight {
-                                Text(insight)
-                                    .font(.subheadline)
-                                    .foregroundStyle(.primary)
-                                    .lineSpacing(4)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                        }
-                        .padding(Theme.s16)
-                        .background(
-                            LinearGradient(
-                                colors: [Color.ledgerAccent.opacity(0.08), Color.ledgerSurface],
-                                startPoint: .topLeading, endPoint: .bottomTrailing
-                            ),
-                            in: RoundedRectangle(cornerRadius: Theme.radiusM)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: Theme.radiusM)
-                                .stroke(Color.ledgerAccent.opacity(0.18), lineWidth: 1)
-                        )
-                    }
                 }
 
                 // MARK: Price Alerts
@@ -355,6 +374,9 @@ struct AssetDetailView: View {
             AddEditPriceAlertView(symbol: asset.wrappedSymbol, alert: alert)
                 .environment(\.managedObjectContext, ctx)
         }
+        .sheet(isPresented: $showingLogTrade) {
+            logTradeSheet
+        }
         .task {
             historyLoading = true
             priceHistory = await priceService.fetchHistory(symbol: asset.wrappedSymbol, kind: asset.assetKind)
@@ -362,6 +384,21 @@ struct AssetDetailView: View {
         }
         .task {
             await sentimentService.fetch(symbols: [asset.wrappedSymbol])
+        }
+        .task {
+            await signalService.fetch(symbols: [asset.wrappedSymbol])
+        }
+        // Re-run Market Intelligence with signal context once both sentiment + signal are available.
+        .task(id: signalService.signals[asset.wrappedSymbol]?.fetchedAt) {
+            guard let sig = signalService.signals[asset.wrappedSymbol],
+                  let s   = sentimentService.sentiment[asset.wrappedSymbol],
+                  !s.topMessages.isEmpty
+            else { return }
+            await sentimentService.analyzeWithClaude(
+                symbol:        asset.wrappedSymbol,
+                messages:      s.topMessages,
+                signalContext: buildSignalContext(sig)
+            )
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -376,6 +413,197 @@ struct AssetDetailView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Trading Signal Card
+
+    private func tradingSignalCard(_ sig: QuantSignal) -> some View {
+        VStack(alignment: .leading, spacing: Theme.s12) {
+            HStack(spacing: Theme.s8) {
+                Image(systemName: "waveform.path.ecg")
+                    .foregroundStyle(Color.ledgerAccent)
+                Text("Bot Signal")
+                    .font(.subheadline.bold())
+                Spacer()
+                Text("PAPER")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.orange, in: Capsule())
+            }
+
+            // Social spike warning — shown prominently when active
+            if sig.socialSpike {
+                HStack(spacing: Theme.s8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("Social volume spike detected — bot skipping entry")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                }
+                .padding(Theme.s8)
+                .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: Theme.radiusS))
+            }
+
+            // Position + z-score row
+            HStack(spacing: Theme.s12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Position")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                    Text(sig.position.uppercased())
+                        .font(.subheadline.bold())
+                        .foregroundStyle(positionColor(sig.position))
+                }
+                Divider().frame(height: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Z-Score")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                    Text(String(format: "%+.2f", sig.zScore))
+                        .font(Theme.monoSubhead().bold())
+                        .foregroundStyle(abs(sig.zScore) >= 2.0 ? Color.ledgerNegative : .primary)
+                }
+                if let sz = sig.socialZ {
+                    Divider().frame(height: 28)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Social Z")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                        Text(String(format: "%+.2f", sz))
+                            .font(Theme.monoSubhead())
+                            .foregroundStyle(abs(sz) >= 2.0 ? .orange : .secondary)
+                    }
+                }
+                Spacer()
+            }
+
+            // Paper summary strip
+            if let ps = sig.paperSummary {
+                Divider()
+                HStack(spacing: 0) {
+                    paperStatCell(label: "Trades", value: "\(ps.nTrades)")
+                    Divider().frame(height: 24)
+                    let sign = ps.meanBps >= 0 ? "+" : ""
+                    paperStatCell(label: "Avg", value: "\(sign)\(String(format: "%.1f", ps.meanBps)) bps",
+                                  color: Color.changeColor(for: ps.meanBps))
+                    Divider().frame(height: 24)
+                    paperStatCell(label: "Win Rate", value: "\(Int(ps.winRate * 100))%",
+                                  color: ps.winRate >= 0.5 ? .ledgerPositive : .ledgerNegative)
+                }
+                .padding(.vertical, Theme.s4)
+                .background(Color(.secondarySystemFill).opacity(0.5),
+                            in: RoundedRectangle(cornerRadius: Theme.radiusS))
+            }
+
+            HStack {
+                Text("Updated \(sig.barTime, style: .relative) ago")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                Spacer()
+                Text("via ledger-proxy")
+                    .font(.caption2).foregroundStyle(.tertiary)
+            }
+
+            Button {
+                HapticService.impact(.medium)
+                showingLogTrade = true
+            } label: {
+                Label("Log Trade", systemImage: "plus.circle.fill")
+                    .font(.subheadline.bold())
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, Theme.s8)
+                    .background(Color.ledgerAccent.opacity(0.1),
+                                in: RoundedRectangle(cornerRadius: Theme.radiusS))
+                    .foregroundStyle(Color.ledgerAccent)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(Theme.s16)
+        .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusM)
+                .stroke(Color.ledgerAccent.opacity(0.15), lineWidth: 1)
+        )
+    }
+
+    private func paperStatCell(label: String, value: String, color: Color = .primary) -> some View {
+        VStack(spacing: 2) {
+            Text(label).font(.system(size: 9)).foregroundStyle(.tertiary)
+            Text(value).font(Theme.monoCaption().bold()).foregroundStyle(color)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.s4)
+    }
+
+    private func positionColor(_ position: String) -> Color {
+        switch position.lowercased() {
+        case "long":  return .ledgerPositive
+        case "short": return .ledgerNegative
+        default:      return .secondary
+        }
+    }
+
+    private func buildSignalContext(_ sig: QuantSignal) -> String {
+        var parts = [
+            "position=\(sig.position)",
+            "z_score=\(String(format: "%.2f", sig.zScore))",
+            "social_spike=\(sig.socialSpike)"
+        ]
+        if let ps = sig.paperSummary {
+            parts.append("paper_mean=\(String(format: "%.1f", ps.meanBps)) bps over \(ps.nTrades) trades")
+        }
+        return "Current signal state for \(sig.symbol): \(parts.joined(separator: ", "))"
+    }
+
+    private func stockTwitsPostRow(_ post: StockTwitsPost) -> some View {
+        HStack(alignment: .top, spacing: Theme.s12) {
+            Text(String(post.username.prefix(1)).uppercased())
+                .font(.caption.bold())
+                .foregroundStyle(Color.ledgerAccent)
+                .frame(width: 28, height: 28)
+                .background(Color.ledgerAccent.opacity(0.12), in: Circle())
+
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: Theme.s4) {
+                    Text("@\(post.username)").font(.caption.bold())
+                    if let sentiment = post.sentiment {
+                        Text(sentiment.rawValue)
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 5).padding(.vertical, 1)
+                            .background(sentiment.color.opacity(0.15), in: Capsule())
+                            .foregroundStyle(sentiment.color)
+                    }
+                    Spacer()
+                    Text(post.createdAt, style: .relative)
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+                Text(post.body)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+            }
+        }
+        .padding(.vertical, Theme.s8)
+    }
+
+    @ViewBuilder
+    private var logTradeSheet: some View {
+        if let sig = signalService.signals[asset.wrappedSymbol] {
+            let dir: TradeDirection = sig.position == "short" ? .short : .long
+            AddEditJournalEntryView(
+                prefillSymbol:      asset.wrappedSymbol,
+                prefillDirection:   dir,
+                prefillStrategyTag: "bot-signal",
+                prefillNotes:       buildLogNotes(sig)
+            )
+            .environment(\.managedObjectContext, ctx)
+        }
+    }
+
+    private func buildLogNotes(_ sig: QuantSignal) -> String {
+        var lines = ["Bot signal · z\(sig.zScore >= 0 ? "+" : "")\(String(format: "%.2f", sig.zScore)) · \(sig.position.uppercased())"]
+        if let ps = sig.paperSummary {
+            lines.append("\(ps.nTrades) trades · \(Int(ps.winRate * 100))% win · \(String(format: "%+.1f", ps.meanBps)) bps avg")
+        }
+        if sig.socialSpike { lines.append("⚠ Social spike active at entry") }
+        return lines.joined(separator: "\n")
     }
 
     private func metricRow(label: String, value: String, valueColor: Color) -> some View {
@@ -402,4 +630,5 @@ struct AssetDetailView: View {
     .environment(\.managedObjectContext, ctx)
     .environmentObject(PriceService())
     .environmentObject(SentimentService())
+    .environmentObject(QuantSignalService())
 }

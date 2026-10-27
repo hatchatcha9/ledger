@@ -63,13 +63,15 @@ enum CSVImportService {
         let lower = fields.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
 
         let dateKeys   = ["date", "transaction date", "trans date", "posted date",
-                          "settlement date", "value date", "posting date"]
+                          "settlement date", "value date", "posting date",
+                          "activity date", "process date"]   // Robinhood
         let amtKeys    = ["amount", "transaction amount", "net amount"]
         let debitKeys  = ["debit", "debit amount", "withdrawals", "withdrawal"]
         let creditKeys = ["credit", "credit amount", "deposits", "deposit"]
         let notesKeys  = ["description", "merchant", "name", "payee", "memo",
                           "narrative", "details", "transaction description",
-                          "particulars", "reference"]
+                          "particulars", "reference",
+                          "instrument"]   // Robinhood (ticker symbol column)
 
         guard let dateIdx  = lower.firstIndex(where: { dateKeys.contains($0) }),
               let notesIdx = lower.firstIndex(where: { notesKeys.contains($0) })

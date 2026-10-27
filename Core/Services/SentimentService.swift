@@ -2,12 +2,21 @@ import SwiftUI
 
 // MARK: - Models
 
+struct StockTwitsPost: Identifiable {
+    let id:        Int
+    let username:  String
+    let body:      String
+    let createdAt: Date
+    let sentiment: SentimentLabel?  // nil if poster didn't tag sentiment
+}
+
 struct SentimentData {
     let symbol:        String
     let score:         Double       // -1.0 (very bearish) to +1.0 (very bullish)
     let label:         SentimentLabel
     let mentions:      Int
-    let topMessages:   [String]     // up to 10 recent post bodies
+    let topMessages:   [String]     // up to 10 recent post bodies (kept for Claude prompt)
+    let posts:         [StockTwitsPost]  // full post objects for the feed UI
     var claudeInsight: String?      // nil until Claude has analyzed them
     let updatedAt:     Date
 }
@@ -46,11 +55,20 @@ private struct STResponse: Decodable {
     }
 
     struct STMessage: Decodable {
-        let body:     String?
-        let entities: STEntities?
+        let id:        Int?
+        let body:      String?
+        let createdAt: String?
+        let user:      STUser?
+        let entities:  STEntities?
+
+        struct STUser: Decodable { let username: String? }
         struct STEntities: Decodable {
             let sentiment: STSentiment?
             struct STSentiment: Decodable { let basic: String? }
+        }
+        enum CodingKeys: String, CodingKey {
+            case id, body, user, entities
+            case createdAt = "created_at"
         }
     }
 }
@@ -98,7 +116,7 @@ final class SentimentService: ObservableObject {
         isFetching = false
     }
 
-    func analyzeWithClaude(symbol: String, messages: [String]) async {
+    func analyzeWithClaude(symbol: String, messages: [String], signalContext: String? = nil) async {
         guard !messages.isEmpty else { return }
         isAnalyzing[symbol] = true
 
@@ -106,10 +124,12 @@ final class SentimentService: ObservableObject {
             .map { "\($0.offset + 1). \($0.element)" }
             .joined(separator: "\n")
 
+        let contextBlock = signalContext.map { "\n\nCurrent live signal context:\n\($0)" } ?? ""
+
         let prompt = """
         Here are the most recent social media posts about \(symbol):
 
-        \(numbered)
+        \(numbered)\(contextBlock)
 
         In 2-3 plain sentences: What is the dominant narrative? What specific catalysts are being discussed (regulation, whale moves, macro, earnings)? How could this crowd sentiment move \(symbol)'s price near-term? Be direct and specific. No markdown, no bold, no bullet points — plain sentences only.
         """
@@ -156,12 +176,31 @@ final class SentimentService: ObservableObject {
 
             let topMessages = messages.prefix(10).compactMap { $0.body }.filter { !$0.isEmpty }
 
+            let isoFmt = ISO8601DateFormatter()
+            let posts: [StockTwitsPost] = messages.prefix(15).compactMap { msg in
+                guard let id       = msg.id,
+                      let body     = msg.body, !body.isEmpty,
+                      let username = msg.user?.username
+                else { return nil }
+                let createdAt = msg.createdAt.flatMap { isoFmt.date(from: $0) } ?? Date()
+                let sentiment: SentimentLabel? = {
+                    switch msg.entities?.sentiment?.basic {
+                    case "Bullish": return .bullish
+                    case "Bearish": return .bearish
+                    default:        return nil
+                    }
+                }()
+                return StockTwitsPost(id: id, username: username, body: body,
+                                     createdAt: createdAt, sentiment: sentiment)
+            }
+
             return SentimentData(
                 symbol:      ticker,
                 score:       score,
                 label:       label,
                 mentions:    mentions,
                 topMessages: topMessages,
+                posts:       posts,
                 updatedAt:   .now
             )
         } catch { return nil }

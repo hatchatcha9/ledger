@@ -6,6 +6,18 @@ struct AddEditJournalEntryView: View {
 
     var entry: JournalEntry? = nil   // nil → add mode
 
+    init(entry: JournalEntry? = nil,
+         prefillSymbol: String = "",
+         prefillDirection: TradeDirection = .long,
+         prefillStrategyTag: String = "",
+         prefillNotes: String = "") {
+        self.entry = entry
+        _symbol       = State(initialValue: prefillSymbol)
+        _direction    = State(initialValue: prefillDirection)
+        _strategyTag  = State(initialValue: prefillStrategyTag)
+        _notes        = State(initialValue: prefillNotes)
+    }
+
     // Form state
     @State private var symbol       = ""
     @State private var direction: TradeDirection = .long

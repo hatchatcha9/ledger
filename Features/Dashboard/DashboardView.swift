@@ -70,6 +70,7 @@ struct DashboardView: View {
 
     @EnvironmentObject private var prices: PriceService
     @EnvironmentObject private var quantStatus: QuantStatusService
+    @EnvironmentObject private var signalService: QuantSignalService
 
     @State private var selectedRange: TimeRange = .thirtyDays
     @State private var showingChat = false
@@ -118,6 +119,8 @@ struct DashboardView: View {
                     if !velocityAlerts.isEmpty && !velocityBannerDismissedToday {
                         velocityBannerCard
                     }
+
+                    botPulseCard
 
                     if goalEnabled && goalAmount > 0 {
                         goalCard
@@ -235,6 +238,9 @@ struct DashboardView: View {
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
             SpendingVelocityService.fireNotifications(for: velocityAlerts)
+        }
+        .task {
+            await signalService.fetch(symbols: ["BTC", "ETH", "SOL"])
         }
         // Fetch FX rates as soon as the dashboard appears so net worth and
         // cash-flow figures are correct before the user visits Portfolio.
@@ -1033,6 +1039,96 @@ struct DashboardView: View {
         .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
     }
 
+    // MARK: - Bot Pulse card
+
+    private static let botSymbols = ["BTC", "ETH", "SOL"]
+
+    @ViewBuilder
+    private var botPulseCard: some View {
+        let activeSignals = Self.botSymbols.compactMap { signalService.signals[$0] }
+
+        if signalService.isFetching || !activeSignals.isEmpty {
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                HStack {
+                    Label("Bot Pulse", systemImage: "waveform.path.ecg")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    if signalService.isFetching {
+                        ProgressView().scaleEffect(0.7)
+                    } else {
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(Color.ledgerPositive)
+                                .frame(width: 7, height: 7)
+                            Text("Live")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                if activeSignals.isEmpty {
+                    Text("Syncing…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(activeSignals, id: \.symbol) { sig in
+                        botPulseRow(sig)
+                        if sig.symbol != activeSignals.last?.symbol {
+                            Divider()
+                        }
+                    }
+                }
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        }
+    }
+
+    private func botPulseRow(_ sig: QuantSignal) -> some View {
+        HStack(spacing: Theme.s8) {
+            Text(sig.symbol)
+                .font(.subheadline.bold())
+                .frame(width: 36, alignment: .leading)
+
+            let posColor: Color = {
+                switch sig.position {
+                case "long":  return .ledgerPositive
+                case "short": return .ledgerNegative
+                default:      return Color(.secondaryLabel)
+                }
+            }()
+            Text(sig.position.uppercased())
+                .font(.caption2.bold())
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(posColor.opacity(0.15), in: Capsule())
+                .foregroundStyle(posColor)
+
+            let zSign = sig.zScore >= 0 ? "+" : ""
+            Text("z\(zSign)\(String(format: "%.2f", sig.zScore))")
+                .font(Theme.monoCaption())
+                .foregroundStyle(.secondary)
+
+            if sig.socialSpike {
+                Image(systemName: "bolt.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.orange)
+            }
+
+            Spacer()
+
+            if let ps = sig.paperSummary {
+                Text("\(ps.nTrades)t")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                Text("\(Int(ps.winRate * 100))%")
+                    .font(.caption2.bold())
+                    .foregroundStyle(ps.winRate >= 0.5 ? .ledgerPositive : .ledgerNegative)
+            }
+        }
+    }
+
     // MARK: - Velocity alert banner
 
     @ViewBuilder
@@ -1231,4 +1327,5 @@ struct DashboardView: View {
         .environment(\.managedObjectContext, PersistenceController.preview.container.viewContext)
         .environmentObject(PriceService())
         .environmentObject(QuantStatusService())
+        .environmentObject(QuantSignalService())
 }
