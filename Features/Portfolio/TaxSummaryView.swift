@@ -7,9 +7,15 @@ struct TaxSummaryView: View {
         animation: .default
     ) private var closedTrades: FetchedResults<JournalEntry>
 
-    @AppStorage("currencyCode")    private var currencyCode = "USD"
+    @FetchRequest(
+        sortDescriptors: [SortDescriptor(\.date)],
+        animation: .default
+    ) private var allTransactions: FetchedResults<CDTransaction>
+
+    @AppStorage("currencyCode")    private var currencyCode   = "USD"
     @AppStorage("taxRateShort")    private var taxRateShort: Double = 25
     @AppStorage("taxRateLong")     private var taxRateLong:  Double = 15
+    @AppStorage("taxRateIncome")   private var taxRateIncome: Double = 22
 
     @State private var selectedYear: Int = Calendar.current.component(.year, from: .now)
 
@@ -59,12 +65,42 @@ struct TaxSummaryView: View {
         max(0, netShortTerm) * (taxRateShort / 100) + max(0, netLongTerm) * (taxRateLong / 100)
     }
 
-    // Quarterly breakdown
+    // Quarterly P&L breakdown (trading)
     private func pnlForQuarter(_ q: Int) -> Double {
         let cal = Calendar.current
         return tradesForYear
             .filter { ((cal.component(.month, from: $0.exitDate) - 1) / 3) + 1 == q }
             .reduce(0) { $0 + $1.pnl }
+    }
+
+    // Quarterly income from transactions
+    private func incomeForQuarter(_ q: Int) -> Double {
+        let cal = Calendar.current
+        return allTransactions.filter { tx in
+            guard tx.amount > 0, let d = tx.date,
+                  cal.component(.year, from: d) == selectedYear else { return false }
+            let month = cal.component(.month, from: d)
+            return ((month - 1) / 3) + 1 == q
+        }.reduce(0) { $0 + $1.amount }
+    }
+
+    private var totalIncomeForYear: Double {
+        let cal = Calendar.current
+        return allTransactions.filter { tx in
+            guard tx.amount > 0, let d = tx.date else { return false }
+            return cal.component(.year, from: d) == selectedYear
+        }.reduce(0) { $0 + $1.amount }
+    }
+
+    // IRS quarterly estimated payment due dates
+    private func quarterDueDate(_ q: Int) -> String {
+        switch q {
+        case 1: return "Due Apr 15"
+        case 2: return "Due Jun 15"
+        case 3: return "Due Sep 15"
+        case 4: return "Due Jan 15"
+        default: return ""
+        }
     }
 
     var body: some View {
@@ -128,8 +164,8 @@ struct TaxSummaryView: View {
                     Text("Informational only — consult a tax professional. Set your rates below.")
                 }
 
-                // MARK: Quarterly breakdown
-                Section("Quarterly Breakdown") {
+                // MARK: Quarterly P&L breakdown
+                Section("Quarterly P&L") {
                     ForEach(1...4, id: \.self) { q in
                         let pnl = pnlForQuarter(q)
                         HStack {
@@ -140,6 +176,40 @@ struct TaxSummaryView: View {
                                 .font(Theme.monoSubhead())
                                 .foregroundStyle(Color.changeColor(for: pnl))
                         }
+                    }
+                }
+
+                // MARK: Quarterly income estimates
+                let totalIncome = totalIncomeForYear
+                if totalIncome > 0 {
+                    Section {
+                        ForEach(1...4, id: \.self) { q in
+                            let income  = incomeForQuarter(q)
+                            let estTax  = income * (taxRateIncome / 100)
+                            HStack(spacing: 0) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Q\(q) Income")
+                                        .font(.subheadline)
+                                    Text(quarterDueDate(q))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                VStack(alignment: .trailing, spacing: 2) {
+                                    Text(income.asCurrency(code: currencyCode))
+                                        .font(Theme.monoSubhead())
+                                        .foregroundStyle(.primary)
+                                    Text("≈\(estTax.asCurrency(code: currencyCode)) tax")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+                    } header: {
+                        Text("Quarterly Income Estimates")
+                    } footer: {
+                        Text("Income × \(Int(taxRateIncome))% income tax rate. Adjust below. Consult a tax professional for accurate estimates.")
                     }
                 }
 
@@ -175,7 +245,17 @@ struct TaxSummaryView: View {
             // MARK: Tax rate settings
             Section("Tax Rates") {
                 HStack {
-                    Text("Short-Term Rate")
+                    Text("Income Rate")
+                    Spacer()
+                    Text("\(Int(taxRateIncome))%")
+                        .font(Theme.monoBody())
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: $taxRateIncome, in: 0...50, step: 1)
+                    .tint(Color.purple)
+
+                HStack {
+                    Text("Short-Term Gains Rate")
                     Spacer()
                     Text("\(Int(taxRateShort))%")
                         .font(Theme.monoBody())
@@ -185,7 +265,7 @@ struct TaxSummaryView: View {
                     .tint(Color.orange)
 
                 HStack {
-                    Text("Long-Term Rate")
+                    Text("Long-Term Gains Rate")
                     Spacer()
                     Text("\(Int(taxRateLong))%")
                         .font(Theme.monoBody())

@@ -20,6 +20,8 @@ struct CSVImportView: View {
 
     @State private var importState:      ImportState = .idle
     @State private var showingPicker     = false
+    @State private var showingPaste      = false
+    @State private var pasteText         = ""
     @State private var isImporting       = false
     @State private var mapDate:   Int = 0
     @State private var mapAmount: Int = 1
@@ -58,6 +60,9 @@ struct CSVImportView: View {
         ) { result in
             handleFilePick(result)
         }
+        .sheet(isPresented: $showingPaste) {
+            pasteSheet
+        }
     }
 
     // MARK: - Idle view
@@ -95,6 +100,17 @@ struct CSVImportView: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(Color.ledgerAccent)
+                .controlSize(.large)
+
+                Button {
+                    pasteText = UIPasteboard.general.string ?? ""
+                    showingPaste = true
+                } label: {
+                    Label("Paste Transactions", systemImage: "doc.on.clipboard")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
                 .tint(Color.ledgerAccent)
                 .controlSize(.large)
 
@@ -392,6 +408,74 @@ struct CSVImportView: View {
             Text(text)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Paste sheet
+
+    private var pasteSheet: some View {
+        NavigationStack {
+            VStack(spacing: Theme.s16) {
+                Text("Paste the CSV text copied from your bank's website or export, then tap Parse.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, Theme.s16)
+
+                TextEditor(text: $pasteText)
+                    .font(.system(.caption, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .background(Color(.secondarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.radiusS))
+                    .frame(maxHeight: .infinity)
+                    .padding(.horizontal, Theme.s16)
+
+                Button {
+                    showingPaste = false
+                    handlePastedText(pasteText)
+                } label: {
+                    Label("Parse Transactions", systemImage: "arrow.right.circle.fill")
+                        .frame(maxWidth: .infinity)
+                        .fontWeight(.semibold)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.ledgerAccent)
+                .controlSize(.large)
+                .disabled(pasteText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .padding(.horizontal, Theme.s16)
+                .padding(.bottom, Theme.s24)
+            }
+            .padding(.top, Theme.s16)
+            .navigationTitle("Paste CSV")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showingPaste = false }
+                }
+            }
+        }
+    }
+
+    private func handlePastedText(_ text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            importState = .error("Nothing to parse. Copy your bank's CSV data and try again.")
+            return
+        }
+        let parsed = CSVImportService.parse(trimmed, existingTransactions: account.transactionsArray)
+        let lines  = CSVImportService.splitLines(trimmed)
+        if parsed.rows.isEmpty && lines.count > 1 {
+            let headers = CSVImportService.parseFields(lines[0]).map { $0.trimmingCharacters(in: .whitespaces) }
+            mapDate   = 0
+            mapAmount = min(1, headers.count - 1)
+            mapNotes  = min(2, headers.count - 1)
+            HapticService.impact(.soft)
+            importState = .mapping(rawText: trimmed, headers: headers)
+        } else if parsed.rows.isEmpty {
+            importState = .error("No transactions found in the pasted text. Make sure it's CSV-formatted with date, amount, and description columns.")
+        } else {
+            HapticService.impact(.soft)
+            importState = .parsed(parsed)
         }
     }
 

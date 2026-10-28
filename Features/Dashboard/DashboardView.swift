@@ -131,17 +131,23 @@ struct DashboardView: View {
                     if goalEnabled && goalAmount > 0 {
                         goalCard
                     }
+
+                    sectionHeader("PLANNING")
                     fireCard
                     tradeGoalCard
                     emergencyFundCard
-                    subscriptionRadarCard
-                    netWorthChartCard
-                    cashFlowCard
                     forecastCard
+
+                    sectionHeader("SPENDING")
+                    subscriptionRadarCard
                     if !budgets.isEmpty {
                         budgetCard
                     }
                     spendingChartCard
+
+                    sectionHeader("PORTFOLIO")
+                    netWorthChartCard
+                    cashFlowCard
                     recentActivityCard
                 }
                 .padding(Theme.s16)
@@ -160,36 +166,46 @@ struct DashboardView: View {
             }
             .background(Color.ledgerGrouped)
             .overlay(alignment: .bottomTrailing) {
-                Button {
-                    HapticService.impact(.medium)
-                    chatVM.financialContext = buildFinancialContext()
-                    showingChat = true
-                } label: {
-                    HStack(spacing: Theme.s8) {
-                        Group {
-                            if #available(iOS 17, *) {
-                                Image(systemName: "sparkles")
-                                    .symbolEffect(.pulse, options: .repeating)
-                            } else {
-                                Image(systemName: "sparkles")
+                VStack(alignment: .trailing, spacing: 4) {
+                    Button {
+                        HapticService.impact(.medium)
+                        chatVM.financialContext = buildFinancialContext()
+                        showingChat = true
+                    } label: {
+                        HStack(spacing: Theme.s8) {
+                            Group {
+                                if #available(iOS 17, *) {
+                                    Image(systemName: "sparkles")
+                                        .symbolEffect(.pulse, options: .repeating)
+                                } else {
+                                    Image(systemName: "sparkles")
+                                }
                             }
+                            Text("Ask Claude")
+                                .fontWeight(.semibold)
                         }
-                        Text("Ask Claude")
-                            .fontWeight(.semibold)
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, Theme.s16)
+                        .padding(.vertical, Theme.s12)
+                        .background(Color.ledgerAccent, in: Capsule())
+                        .shadow(color: Color.ledgerAccent.opacity(0.4), radius: 14, y: 6)
+                        .scaleEffect(chatButtonPulse ? 1.025 : 1.0)
+                        .animation(
+                            .easeInOut(duration: 2.2).repeatForever(autoreverses: true),
+                            value: chatButtonPulse
+                        )
                     }
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, Theme.s16)
-                    .padding(.vertical, Theme.s12)
-                    .background(Color.ledgerAccent, in: Capsule())
-                    .shadow(color: Color.ledgerAccent.opacity(0.4), radius: 14, y: 6)
-                    .scaleEffect(chatButtonPulse ? 1.025 : 1.0)
-                    .animation(
-                        .easeInOut(duration: 2.2).repeatForever(autoreverses: true),
-                        value: chatButtonPulse
-                    )
+                    .buttonStyle(ScaleButtonStyle(pressedScale: 0.93))
+
+                    HStack(spacing: 3) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 8))
+                        Text("Summary only · no account details sent")
+                            .font(.system(size: 10))
+                    }
+                    .foregroundStyle(.secondary.opacity(0.7))
                 }
-                .buttonStyle(ScaleButtonStyle(pressedScale: 0.93))
                 .padding(.trailing, Theme.s16)
                 .padding(.bottom, Theme.s16)
                 .onAppear {
@@ -1611,14 +1627,13 @@ struct DashboardView: View {
     private var fireNumber: Double { annualExpenses * fireMultiplier }
     private var fireProgress: Double { fireNumber > 0 ? max(0, min(totalBalance / fireNumber, 1.0)) : 0 }
 
-    private var projectedFIREDate: Date? {
+    private func projectedFIREDate(rate: Double) -> Date? {
         guard fireNumber > totalBalance else { return nil }
-        let monthlyRate = pow(1.0 + fireExpectedReturn / 100.0, 1.0 / 12.0) - 1.0
+        let monthlyRate = pow(1.0 + rate / 100.0, 1.0 / 12.0) - 1.0
         guard currentMonthSavings > 0 || (monthlyRate > 0 && totalBalance > 0) else { return nil }
-        // Month-by-month compound growth simulation (handles all edge cases cleanly)
         var balance = totalBalance
         var months  = 0
-        let cap     = 600   // 50-year cap — shows nil rather than a meaningless date
+        let cap     = 600
         while balance < fireNumber && months < cap {
             balance = balance * (1.0 + monthlyRate) + currentMonthSavings
             months += 1
@@ -1626,6 +1641,8 @@ struct DashboardView: View {
         guard months > 0, months < cap else { return nil }
         return Calendar.current.date(byAdding: .month, value: months, to: .now)
     }
+
+    private var projectedFIREDate: Date? { projectedFIREDate(rate: fireExpectedReturn) }
 
     @ViewBuilder
     private var fireCard: some View {
@@ -1671,10 +1688,26 @@ struct DashboardView: View {
                 if fireProgress >= 1 {
                     Text("Financially independent!")
                         .font(.caption).foregroundStyle(.ledgerPositive)
-                } else if let date = projectedFIREDate {
-                    let retStr  = String(format: "%.1f", fireExpectedReturn)
-                    Text("Est. \(date.formatted(.dateTime.month(.abbreviated).year())) · \(retStr)% return + \(currentMonthSavings.asCurrency(code: currencyCode))/mo savings")
-                        .font(.caption).foregroundStyle(.secondary)
+                } else if let base = projectedFIREDate {
+                    let pessimistic = projectedFIREDate(rate: max(1, fireExpectedReturn - 2))
+                    let optimistic  = projectedFIREDate(rate: fireExpectedReturn + 2)
+                    let baseStr = base.formatted(.dateTime.month(.abbreviated).year())
+                    if let slow = pessimistic, let fast = optimistic,
+                       slow.formatted(.dateTime.year()) != fast.formatted(.dateTime.year()) {
+                        let retStr = String(format: "%.1f", fireExpectedReturn)
+                        let slowYr = slow.formatted(.dateTime.year())
+                        let fastYr = fast.formatted(.dateTime.year())
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Est. \(baseStr) · \(retStr)% return")
+                                .font(.caption).foregroundStyle(.secondary)
+                            Text("Range: \(fastYr)–\(slowYr) across \(String(format: "%.0f", fireExpectedReturn-2))%–\(String(format: "%.0f", fireExpectedReturn+2))% scenarios")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                        }
+                    } else {
+                        let retStr = String(format: "%.1f", fireExpectedReturn)
+                        Text("Est. \(baseStr) · \(retStr)% return + \(currentMonthSavings.asCurrency(code: currencyCode))/mo savings")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 } else {
                     Text("Add more months of data for a projection")
                         .font(.caption).foregroundStyle(.secondary)
@@ -1833,6 +1866,17 @@ struct DashboardView: View {
         } else {
             row
         }
+    }
+
+    // MARK: - Section header
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.caption2.bold())
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+            .padding(.top, Theme.s4)
     }
 
     // MARK: - Month label helper for drill-through
