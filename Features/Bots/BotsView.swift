@@ -25,12 +25,14 @@ struct BotsView: View {
                     errorBanner
                     stalenessWarning
                     accountHeader
+                    phase4GateCard       // Phase 4 live paper progress toward HL go-live
                     goLiveCard           // forward test verdict — prominent when available
                     equityCurveCard
                     positionsStrip       // positions ABOVE chart so tapping a card keeps chart visible
                     chartSection
                     feedCard
                     researchCard
+                    planCard             // scale milestones + owner blockers
                     askClaudeButton
                 }
                 .padding(Theme.s16)
@@ -120,6 +122,213 @@ struct BotsView: View {
                 RoundedRectangle(cornerRadius: Theme.radiusS)
                     .stroke(Color.orange.opacity(0.4), lineWidth: 1)
             )
+        }
+    }
+
+    // MARK: - Phase 4 gate card
+
+    @ViewBuilder
+    private var phase4GateCard: some View {
+        let p4 = quantStatus.status?.phase4
+        let combined  = p4?.combinedN ?? 0
+        let goal      = p4?.goalN ?? 30
+        let gatePass  = p4?.gatePass == true
+        let fraction  = p4?.progressFraction ?? 0
+        let blockers  = quantStatus.status?.goLiveBlockers ?? []
+
+        VStack(alignment: .leading, spacing: Theme.s12) {
+            // Header row
+            HStack(spacing: Theme.s8) {
+                Image(systemName: gatePass ? "checkmark.seal.fill" : "chart.bar.xaxis")
+                    .foregroundStyle(gatePass ? .ledgerPositive : .ledgerAccent)
+                Text("HL Live Paper Gate")
+                    .font(.subheadline.bold())
+                Spacer()
+                Text(gatePass ? "GATE PASS" : "\(combined)/\(goal)")
+                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .foregroundStyle(gatePass ? .ledgerPositive : .ledgerAccent)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background((gatePass ? Color.ledgerPositive : Color.ledgerAccent).opacity(0.12), in: Capsule())
+            }
+
+            // Progress bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.secondary.opacity(0.15))
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(gatePass ? Color.ledgerPositive : Color.ledgerAccent)
+                        .frame(width: max(4, geo.size.width * fraction), height: 6)
+                }
+            }
+            .frame(height: 6)
+
+            // Per-symbol rows
+            if let symbols = p4?.symbols, !symbols.isEmpty {
+                HStack(spacing: Theme.s12) {
+                    ForEach(["BTC", "ETH", "SOL"], id: \.self) { sym in
+                        if let stats = symbols[sym.lowercased()] {
+                            let n = stats.n ?? 0
+                            VStack(spacing: 2) {
+                                Text(sym)
+                                    .font(.system(size: 9, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Text("N=\(n)")
+                                    .font(Theme.monoCaption().bold())
+                                    .foregroundStyle(n > 0 ? .primary : .tertiary)
+                                if let bps = stats.meanBps, n > 0 {
+                                    Text("\(bps >= 0 ? "+" : "")\(String(format: "%.1f", bps)) bps")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(Color.changeColor(for: bps))
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: Theme.radiusS))
+                        }
+                    }
+                }
+            } else {
+                Text("Loggers running — first trades will appear here.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Mean bps combined
+            if let mean = p4?.combinedMeanBps, combined > 0 {
+                HStack(spacing: Theme.s4) {
+                    Text("Combined mean:")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("\(mean >= 0 ? "+" : "")\(String(format: "%.2f", mean)) bps")
+                        .font(Theme.monoCaption().bold())
+                        .foregroundStyle(Color.changeColor(for: mean))
+                    Text("(need >0 to pass)")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+
+            // Blockers
+            if !blockers.isEmpty && !gatePass {
+                Divider()
+                VStack(alignment: .leading, spacing: Theme.s4) {
+                    Text("BLOCKERS")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    ForEach(blockers, id: \.self) { blocker in
+                        HStack(alignment: .top, spacing: Theme.s4) {
+                            Text("·")
+                                .font(.caption2)
+                                .foregroundStyle(.orange)
+                            Text(blocker)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+        .padding(Theme.s16)
+        .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.radiusM)
+                .stroke(
+                    gatePass ? Color.ledgerPositive.opacity(0.4) : Color.ledgerAccent.opacity(0.2),
+                    lineWidth: 1.5
+                )
+        )
+    }
+
+    // MARK: - Plan card (scale milestones)
+
+    @ViewBuilder
+    private var planCard: some View {
+        let gatePass = quantStatus.status?.phase4?.gatePass == true
+        let blockers = quantStatus.status?.goLiveBlockers ?? []
+
+        VStack(alignment: .leading, spacing: Theme.s12) {
+            HStack(spacing: Theme.s8) {
+                Image(systemName: "map.fill").foregroundStyle(.ledgerAccent)
+                Text("Path to Real Money")
+                    .font(.subheadline.bold())
+                Spacer()
+                Text("PLAN")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.1), in: Capsule())
+            }
+
+            // Scale ladder
+            VStack(alignment: .leading, spacing: Theme.s8) {
+                scaleLadderRow(rung: 1, label: "$100 HL go-live", sublabel: "Phase 4 paper N≥30 + owner confirm", isCurrent: !gatePass, isDone: gatePass)
+                scaleLadderRow(rung: 2, label: "$250 scale up",   sublabel: "4 weeks live, mean>+10 bps sustained", isCurrent: gatePass,  isDone: false)
+                scaleLadderRow(rung: 3, label: "$500 BTC+ETH",    sublabel: "2nd coin added, 8 wks sustained edge", isCurrent: false,     isDone: false)
+                scaleLadderRow(rung: 4, label: "$1,000+",         sublabel: "Multi-bot, real capital allocation",   isCurrent: false,     isDone: false)
+            }
+
+            if !blockers.isEmpty {
+                Divider()
+                VStack(alignment: .leading, spacing: Theme.s4) {
+                    Text("NEXT OWNER ACTIONS")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    ForEach(blockers, id: \.self) { blocker in
+                        HStack(alignment: .top, spacing: Theme.s4) {
+                            Image(systemName: "square")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.orange)
+                            Text(blocker)
+                                .font(.caption2)
+                                .foregroundStyle(.primary)
+                        }
+                    }
+                }
+            }
+
+            HStack(spacing: Theme.s4) {
+                Image(systemName: "info.circle").font(.caption2).foregroundStyle(.tertiary)
+                Text("Real-money deployment requires explicit in-session confirmation.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(Theme.s16)
+        .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+    }
+
+    private func scaleLadderRow(rung: Int, label: String, sublabel: String, isCurrent: Bool, isDone: Bool) -> some View {
+        HStack(alignment: .top, spacing: Theme.s12) {
+            ZStack {
+                Circle()
+                    .fill(isDone ? Color.ledgerPositive : isCurrent ? Color.ledgerAccent : Color.secondary.opacity(0.2))
+                    .frame(width: 22, height: 22)
+                if isDone {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
+                } else {
+                    Text("\(rung)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(isCurrent ? .white : .secondary)
+                }
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label)
+                    .font(.caption.bold())
+                    .foregroundStyle(isDone ? .ledgerPositive : isCurrent ? .primary : .secondary)
+                Text(sublabel)
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer()
+            if isCurrent && !isDone {
+                Text("← now")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.ledgerAccent)
+            }
         }
     }
 

@@ -20,6 +20,7 @@ struct QuantBotCard: View {
                     equityRow(status: status)
                     Divider()
                     stanceRow(status: status)
+                    phase4Teaser(status: status)
                     footer(status: status)
                 } else if quantStatus.lastError != nil {
                     Label("Bot status unavailable — check connection", systemImage: "wifi.slash")
@@ -132,6 +133,36 @@ struct QuantBotCard: View {
             }
             if sorted.isEmpty {
                 Text("No stance data").font(.caption2).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func phase4Teaser(status: QuantStatus) -> some View {
+        if let p4 = status.phase4 {
+            let n     = p4.combinedN ?? 0
+            let goal  = p4.goalN ?? 30
+            let pass  = p4.gatePass == true
+            let frac  = p4.progressFraction
+
+            Divider()
+            HStack(spacing: Theme.s8) {
+                Image(systemName: pass ? "checkmark.seal.fill" : "waveform.path.ecg")
+                    .font(.caption2)
+                    .foregroundStyle(pass ? .ledgerPositive : .ledgerAccent)
+                Text(pass ? "HL gate passed — ready for go-live" : "HL paper: \(n)/\(goal) trades")
+                    .font(.caption2)
+                    .foregroundStyle(pass ? .ledgerPositive : .primary)
+                Spacer()
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.secondary.opacity(0.15)).frame(height: 4)
+                        Capsule()
+                            .fill(pass ? Color.ledgerPositive : Color.ledgerAccent)
+                            .frame(width: max(4, geo.size.width * frac), height: 4)
+                    }
+                }
+                .frame(width: 60, height: 4)
             }
         }
     }

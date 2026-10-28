@@ -4,6 +4,38 @@ import Foundation
 // URL: https://quant-system-live.netlify.app/status.json
 // Falls back gracefully when offline — last fetched value is retained.
 
+struct Phase4SymbolStats: Codable {
+    let n: Int?
+    let meanBps: Double?
+
+    enum CodingKeys: String, CodingKey {
+        case n
+        case meanBps = "mean_bps"
+    }
+}
+
+struct Phase4Progress: Codable {
+    let symbols: [String: Phase4SymbolStats]?
+    let combinedN: Int?
+    let combinedMeanBps: Double?
+    let goalN: Int?
+    let gatePass: Bool?
+
+    enum CodingKeys: String, CodingKey {
+        case symbols
+        case combinedN       = "combined_n"
+        case combinedMeanBps = "combined_mean_bps"
+        case goalN           = "goal_n"
+        case gatePass        = "gate_pass"
+    }
+
+    var progressFraction: Double {
+        let n    = Double(combinedN ?? 0)
+        let goal = Double(goalN ?? 30)
+        return goal > 0 ? min(1.0, n / goal) : 0
+    }
+}
+
 struct QuantStatus: Codable {
     let updatedAt:            String?
     let equityMain:           Double?
@@ -13,6 +45,8 @@ struct QuantStatus: Codable {
     let activeStrategy:       String?
     let forwardTestsVerdict:  String?
     let researchSummary:      String?
+    let phase4:               Phase4Progress?
+    let goLiveBlockers:       [String]?
 
     enum CodingKeys: String, CodingKey {
         case updatedAt           = "updated_at"
@@ -23,6 +57,8 @@ struct QuantStatus: Codable {
         case activeStrategy      = "active_strategy"
         case forwardTestsVerdict = "forward_tests_verdict"
         case researchSummary     = "research_summary"
+        case phase4              = "phase4"
+        case goLiveBlockers      = "go_live_blockers"
     }
 
     // Human-readable summary injected into the Claude system prompt.
@@ -56,6 +92,15 @@ struct QuantStatus: Codable {
         }
         if let verdict = forwardTestsVerdict {
             lines.append("  Forward test verdict: \(verdict)")
+        }
+        if let p4 = phase4 {
+            let n    = p4.combinedN ?? 0
+            let goal = p4.goalN ?? 30
+            let pass = p4.gatePass == true ? "PASS" : "accumulating"
+            lines.append("  Phase 4 paper trades: \(n)/\(goal) [\(pass)]")
+        }
+        if let blockers = goLiveBlockers, !blockers.isEmpty {
+            lines.append("  Go-live blockers: \(blockers.joined(separator: "; "))")
         }
         if let research = researchSummary, !research.isEmpty {
             lines.append("  Latest research: \(research)")
