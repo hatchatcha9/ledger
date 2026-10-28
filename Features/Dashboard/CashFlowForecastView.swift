@@ -40,7 +40,9 @@ struct CashFlowForecastView: View {
                         amount: rule.amount
                     ))
                 }
-                next = rule.recurringFrequency.nextDate(after: next)
+                let advanced = rule.recurringFrequency.nextDate(after: next)
+                guard advanced > next else { break }
+                next = advanced
             }
         }
         return result.sorted { $0.date < $1.date }

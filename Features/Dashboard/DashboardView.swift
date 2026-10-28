@@ -235,6 +235,13 @@ struct DashboardView: View {
                     transactions: Array(allTransactions)
                 )
             }
+            .navigationDestination(isPresented: $showingForecast) {
+                CashFlowForecastView(
+                    recurringRules: Array(recurringRules),
+                    currentBalance: totalBalance,
+                    currencyCode:   currencyCode
+                )
+            }
         }
         .sheet(isPresented: $showingChat) {
             ChatView(viewModel: chatVM)
@@ -246,20 +253,14 @@ struct DashboardView: View {
         .sheet(isPresented: $showingSubscriptions) {
             SubscriptionRadarView(subscriptions: SubscriptionRadarService.detect(from: Array(allTransactions)))
         }
-        .navigationDestination(isPresented: $showingForecast) {
-            CashFlowForecastView(
-                recurringRules: Array(recurringRules),
-                currentBalance: totalBalance,
-                currencyCode:   currencyCode
-            )
-        }
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
             SpendingVelocityService.fireNotifications(for: velocityAlerts)
             BudgetAlertService.checkAndNotify(budgets: Array(budgets),
                                               transactions: Array(allTransactions))
-            // Feature 4 — Thesis change alerts: notify when price drops 20%+ below avg cost
+            // Feature 4 — Thesis change alerts: notify when price drops 20%+ below entry
             let openTrades = journalEntries.filter { $0.isOpen }
+            let code = currencyCode  // capture on main thread before background callback
             for trade in openTrades {
                 let sym   = trade.wrappedSymbol
                 let entry = trade.entryPrice
@@ -268,16 +269,15 @@ struct DashboardView: View {
                       current < entry * 0.80
                 else { continue }
                 let notifID = "thesis-alert-\(sym)-\(Calendar.current.component(.weekOfYear, from: .now))"
+                let pct     = Int(((entry - current) / entry) * 100)
+                let body    = "\(sym) is down \(pct)% from your entry (\(current.asCurrency(code: code)) vs \(entry.asCurrency(code: code))). Still conviction?"
                 UNUserNotificationCenter.current().getPendingNotificationRequests { pending in
                     guard !pending.contains(where: { $0.identifier == notifID }) else { return }
-                    let content = UNMutableNotificationContent()
-                    content.title = "Review your thesis: \(sym)"
-                    let pct = Int(((entry - current) / entry) * 100)
-                    content.body  = "\(sym) is down \(pct)% from your entry (\(current.asCurrency(code: currencyCode)) vs \(entry.asCurrency(code: currencyCode))). Still conviction?"
-                    content.sound = .default
-                    let req = UNNotificationRequest(identifier: notifID,
-                                                   content: content,
-                                                   trigger: nil)
+                    let content       = UNMutableNotificationContent()
+                    content.title     = "Review your thesis: \(sym)"
+                    content.body      = body
+                    content.sound     = .default
+                    let req = UNNotificationRequest(identifier: notifID, content: content, trigger: nil)
                     UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
                 }
             }
@@ -358,35 +358,39 @@ struct DashboardView: View {
             lines.append("  Months covered: \(String(format: "%.1f", monthsCovered)) (goal: 6.0)")
         }
 
-        // Feature 6 — Spending anomaly context (current vs prior 3 months by category)
+        // Feature 6 — Spending anomaly context (current vs prior 3 full months by category)
         let cal6 = Calendar.current
-        if let threeMonthsAgo = cal6.date(byAdding: .month, value: -3, to: now) {
-            let recent3 = allTransactions.filter {
+        let startOfCurrentMonth: Date = {
+            var comps = cal6.dateComponents([.year, .month], from: now)
+            comps.day = 1
+            return cal6.date(from: comps) ?? now
+        }()
+        if let threeMonthsAgo = cal6.date(byAdding: .month, value: -3, to: startOfCurrentMonth) {
+            // Exclude current (partial) month so the baseline is 3 complete months
+            let prior3 = allTransactions.filter {
                 guard let d = $0.date else { return false }
-                return $0.amount < 0 && d >= threeMonthsAgo
+                return $0.amount < 0 && d >= threeMonthsAgo && d < startOfCurrentMonth
             }
             var catTotals: [String: Double] = [:]
-            for tx in recent3 {
+            for tx in prior3 {
                 catTotals[tx.transactionCategory.displayName, default: 0] += abs(tx.amount)
             }
             if !catTotals.isEmpty {
-                lines.append("\nSPENDING BY CATEGORY (last 3 months):")
+                lines.append("\nSPENDING BY CATEGORY (prior 3 months):")
                 for (cat, total) in catTotals.sorted(by: { $0.value > $1.value }).prefix(8) {
                     lines.append("  \(cat): \(total.asCurrency(code: currencyCode))")
                 }
-                // Current month vs prior average
+                // Current month vs prior-month average
                 let currentCatTotals = allTransactions.filter {
                     guard let d = $0.date else { return false }
-                    return $0.amount < 0
-                        && cal6.component(.year, from: d) == cal6.component(.year, from: now)
-                        && cal6.component(.month, from: d) == cal6.component(.month, from: now)
+                    return $0.amount < 0 && d >= startOfCurrentMonth
                 }.reduce(into: [String: Double]()) { $0[$1.transactionCategory.displayName, default: 0] += abs($1.amount) }
                 let anomalies = currentCatTotals.filter { cat, amt in
                     let avg3 = (catTotals[cat] ?? 0) / 3
                     return avg3 > 0 && amt > avg3 * 1.5
                 }
                 if !anomalies.isEmpty {
-                    lines.append("  ANOMALIES this month (>1.5x avg):")
+                    lines.append("  ANOMALIES this month (>1.5x prior avg):")
                     for (cat, amt) in anomalies {
                         let avg3 = (catTotals[cat] ?? 0) / 3
                         lines.append("    \(cat): \(amt.asCurrency(code: currencyCode)) vs avg \(avg3.asCurrency(code: currencyCode))/mo")
@@ -1027,7 +1031,9 @@ struct DashboardView: View {
             var next = rule.nextDueDate ?? .distantFuture
             while next <= target {
                 proj += rule.amount
-                next  = rule.recurringFrequency.nextDate(after: next)
+                let advanced = rule.recurringFrequency.nextDate(after: next)
+                guard advanced > next else { break }
+                next = advanced
             }
         }
         return proj
@@ -1103,8 +1109,15 @@ struct DashboardView: View {
         let cal = Calendar.current
         guard let sixMonthsAgo = cal.date(byAdding: .month, value: -6, to: .now) else { return 0 }
         let recent = allTransactions.filter { ($0.date ?? .distantPast) >= sixMonthsAgo && $0.amount < 0 }
+        guard !recent.isEmpty else { return 0 }
         let total  = recent.reduce(0) { $0 + abs($1.amount) }
-        return total / 6
+        // Divide by actual months with data, capped at 6
+        let uniqueMonths = Set(recent.compactMap { tx -> String? in
+            guard let d = tx.date else { return nil }
+            let c = cal.dateComponents([.year, .month], from: d)
+            return "\(c.year ?? 0)-\(c.month ?? 0)"
+        }).count
+        return total / Double(max(1, uniqueMonths))
     }
 
     private var monthsCovered: Double {

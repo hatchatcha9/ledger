@@ -38,7 +38,7 @@ struct TaxSummaryView: View {
                   cal.component(.year, from: exitDate) == selectedYear
             else { return nil }
 
-            let held = cal.dateComponents([.day], from: entry.entryDate, to: exitDate).day ?? 0
+            let held = cal.dateComponents([.day], from: entry.entryDate ?? exitDate, to: exitDate).day ?? 0
             return TaxableTrade(
                 symbol:   entry.wrappedSymbol,
                 pnl:      pnl,
