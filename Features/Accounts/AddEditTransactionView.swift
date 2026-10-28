@@ -15,6 +15,7 @@ struct AddEditTransactionView: View {
     @State private var date = Date()
     @State private var notes = ""
     @State private var splits: [TransactionSplit] = []
+    @State private var selectedTags: Set<String>  = []
     @State private var showingSplitEditor = false
     @State private var showingLargeAmountAlert = false
     @FocusState private var amountFocused: Bool
@@ -145,6 +146,15 @@ struct AddEditTransactionView: View {
                     if isSplit { Text("Splits") }
                 }
 
+                // MARK: Tags
+                Section("Tags") {
+                    FlowTagPicker(
+                        allTags:      CDTransaction.predefinedTags,
+                        selectedTags: $selectedTags
+                    )
+                    .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+                }
+
                 // MARK: Account info (read-only, helpful context)
                 Section {
                     LabeledContent("Account", value: account.wrappedName)
@@ -221,12 +231,13 @@ struct AddEditTransactionView: View {
     private func preloadFields() {
         guard let tx = transaction else { return }
         let raw = tx.amount
-        amountText = String(format: "%.2f", abs(raw))
-        isExpense  = raw < 0
-        category   = tx.transactionCategory
-        date       = tx.date ?? .now
-        notes      = tx.wrappedNotes
-        splits     = tx.splits
+        amountText   = String(format: "%.2f", abs(raw))
+        isExpense    = raw < 0
+        category     = tx.transactionCategory
+        date         = tx.date ?? .now
+        notes        = tx.wrappedNotes
+        splits       = tx.splits
+        selectedTags = Set(tx.wrappedTags)
     }
 
     private func saveTransaction() {
@@ -245,6 +256,7 @@ struct AddEditTransactionView: View {
             existing.date     = date
             existing.notes    = notes
             existing.splits   = splits
+            existing.setTags(Array(selectedTags))
         } else {
             let tx       = CDTransaction(context: ctx)
             tx.id        = UUID()
@@ -256,6 +268,7 @@ struct AddEditTransactionView: View {
             tx.createdAt = .now
             tx.account   = account
             tx.splits    = splits
+            tx.setTags(Array(selectedTags))
 
             // Mirror the transaction on the account balance.
             account.balance += signed

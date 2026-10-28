@@ -28,6 +28,7 @@ struct AccountDetailView: View {
         return account.transactionsArray.filter {
             $0.wrappedNotes.lowercased().contains(q)
                 || $0.transactionCategory.displayName.lowercased().contains(q)
+                || $0.wrappedTags.contains { $0.lowercased().contains(q) }
         }
     }
 
@@ -534,7 +535,7 @@ private struct TransactionRow: View {
                 .frame(width: 38, height: 38)
                 .background(amountColor.opacity(0.12), in: RoundedRectangle(cornerRadius: Theme.radiusS))
 
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(rowTitle)
                     .font(.body)
                     .foregroundStyle(.primary)
@@ -551,6 +552,7 @@ private struct TransactionRow: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                TagChips(tags: transaction.wrappedTags)
             }
 
             Spacer()

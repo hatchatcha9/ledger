@@ -116,6 +116,8 @@ struct DashboardView: View {
                         )
                     }
 
+                    monthOverMonthCard
+
                     if !velocityAlerts.isEmpty && !velocityBannerDismissedToday {
                         velocityBannerCard
                     }
@@ -238,6 +240,8 @@ struct DashboardView: View {
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
             SpendingVelocityService.fireNotifications(for: velocityAlerts)
+            BudgetAlertService.checkAndNotify(budgets: Array(budgets),
+                                              transactions: Array(allTransactions))
         }
         .task {
             await signalService.fetch(symbols: ["BTC", "ETH", "SOL"])
@@ -349,6 +353,17 @@ struct DashboardView: View {
             else             { expenses += abs(converted) }
         }
         return (income, expenses)
+    }
+
+    // MARK: - Month-over-month
+
+    private var lastMonthTotals: (income: Double, expenses: Double) {
+        guard let lastMonth = Calendar.current.date(byAdding: .month, value: -1, to: .now) else {
+            return (0, 0)
+        }
+        let cal = Calendar.current
+        return monthlyTotals(year: cal.component(.year,  from: lastMonth),
+                             month: cal.component(.month, from: lastMonth))
     }
 
     private var currentMonthIncome: Double {
@@ -482,6 +497,65 @@ struct DashboardView: View {
     }
 
     // MARK: - Chart cards
+
+    // MARK: - Month-over-month card
+
+    @ViewBuilder
+    private var monthOverMonthCard: some View {
+        let last = lastMonthTotals
+        if last.income > 0 || last.expenses > 0 {
+            let incomeChg  = last.income   > 0 ? ((currentMonthIncome   - last.income)   / last.income)   * 100 : 0.0
+            let expenseChg = last.expenses > 0 ? ((currentMonthExpenses - last.expenses) / last.expenses) * 100 : 0.0
+            let lastSaved  = last.income - last.expenses
+            let thisSaved  = currentMonthSavings
+
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                Label("vs Last Month", systemImage: "arrow.left.arrow.right.circle")
+                    .font(.subheadline.bold())
+
+                HStack(spacing: 0) {
+                    momCell(label: "Income",
+                            current: currentMonthIncome,
+                            change: incomeChg,
+                            positive: incomeChg >= 0)
+                    Divider().frame(height: 44)
+                    momCell(label: "Expenses",
+                            current: currentMonthExpenses,
+                            change: expenseChg,
+                            positive: expenseChg <= 0)
+                    Divider().frame(height: 44)
+                    momCell(label: "Saved",
+                            current: thisSaved,
+                            change: lastSaved != 0 ? ((thisSaved - lastSaved) / abs(lastSaved)) * 100 : 0,
+                            positive: thisSaved >= lastSaved)
+                }
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        }
+    }
+
+    private func momCell(label: String, current: Double, change: Double, positive: Bool) -> some View {
+        let sign = change >= 0 ? "+" : ""
+        return VStack(spacing: 3) {
+            Text(label)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            Text(current.asCurrency(code: currencyCode))
+                .font(Theme.monoCaption().bold())
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            HStack(spacing: 2) {
+                Image(systemName: positive ? "arrow.up.right" : "arrow.down.right")
+                    .font(.system(size: 8, weight: .bold))
+                Text("\(sign)\(String(format: "%.0f", change))%")
+                    .font(.system(size: 10))
+            }
+            .foregroundStyle(positive ? Color.ledgerPositive : Color.ledgerNegative)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, Theme.s4)
+    }
 
     @ViewBuilder
     private var netWorthChartCard: some View {

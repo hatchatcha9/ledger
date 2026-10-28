@@ -5,74 +5,48 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Ledger — Privacy Policy</title>
 <style>
-  :root {
-    --bg: #ffffff;
-    --fg: #1c1c1e;
-    --secondary: #6e6e73;
-    --accent: #0a84ff;
-    --surface: #f2f2f7;
-    --radius: 12px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+         max-width: 640px; margin: 40px auto; padding: 0 20px;
+         color: #1c1c1e; line-height: 1.6; }
+  h1   { font-size: 1.6rem; }
+  h2   { font-size: 1.1rem; margin-top: 2em; }
+  p    { margin: 0.6em 0; }
+  a    { color: #007aff; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #000000; --fg: #f5f5f7; --secondary: #98989d; --surface: #1c1c1e; }
+    body { background: #1c1c1e; color: #f2f2f7; }
+    a    { color: #0a84ff; }
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--fg); line-height: 1.6; padding: 0 16px; }
-  .wrap { max-width: 680px; margin: 0 auto; padding: 48px 0 80px; }
-  h1 { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
-  .meta { color: var(--secondary); font-size: 0.9rem; margin-bottom: 40px; }
-  h2 { font-size: 1.1rem; font-weight: 600; margin: 32px 0 8px; }
-  p, li { color: var(--fg); font-size: 0.97rem; }
-  ul { padding-left: 20px; }
-  li { margin-bottom: 6px; }
-  .card { background: var(--surface); border-radius: var(--radius); padding: 20px 24px; margin: 24px 0; }
-  .card p { margin: 0; }
-  a { color: var(--accent); text-decoration: none; }
-  a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>Privacy Policy</h1>
-  <p class="meta">Ledger: Net Worth &amp; Portfolio &nbsp;·&nbsp; Effective October 2026</p>
+<h1>Privacy Policy — Ledger</h1>
+<p><em>Last updated: October 2026</em></p>
 
-  <div class="card">
-    <p><strong>Short version:</strong> Ledger stores your financial data on your device and in your personal iCloud account. We do not collect, sell, or share your financial information with anyone.</p>
-  </div>
+<h2>What data Ledger collects</h2>
+<p><strong>Nothing.</strong> Ledger stores all your financial data locally on your device using Apple's CoreData framework. No account, sign-in, or internet connection is required to use the app.</p>
 
-  <h2>Data We Collect</h2>
-  <p>Ledger does not collect personal data. All information you enter — accounts, transactions, portfolio holdings, journal entries, and budgets — is stored exclusively on your device using CoreData and synced to your personal iCloud account via CloudKit if you have iCloud enabled.</p>
+<h2>What data leaves your device</h2>
+<p>Two optional, on-demand features contact external servers:</p>
+<ul>
+  <li><strong>Live prices</strong> — Ledger fetches asset prices from Yahoo Finance. Your asset symbols are sent as part of the request URL. No personal data is included.</li>
+  <li><strong>Ask Claude / Market Intelligence</strong> — When you tap "Ask Claude" or open an asset's Market Intelligence card, a summary of your anonymised financial data or recent social posts is sent to a proxy server to generate an AI response. No names, account numbers, or identifying information are included. The proxy does not log or store request content beyond the current request.</li>
+</ul>
+<p>Both features are entirely optional. Ledger works fully offline without them.</p>
 
-  <h2>iCloud Sync</h2>
-  <p>If you have iCloud enabled, your data syncs across your own devices via Apple's CloudKit service. This data is stored in your private iCloud container and is governed by <a href="https://www.apple.com/legal/privacy/">Apple's Privacy Policy</a>. We cannot access it.</p>
+<h2>Third-party services</h2>
+<ul>
+  <li><strong>Yahoo Finance API</strong> — price data only; see <a href="https://legal.yahoo.com/us/en/yahoo/privacy/index.html" target="_blank">Yahoo Privacy Policy</a>.</li>
+  <li><strong>StockTwits API</strong> — public social sentiment; no authentication required; see <a href="https://stocktwits.com/privacy" target="_blank">StockTwits Privacy Policy</a>.</li>
+  <li><strong>Anthropic Claude</strong> — AI analysis via a self-hosted proxy; see <a href="https://www.anthropic.com/privacy" target="_blank">Anthropic Privacy Policy</a>.</li>
+</ul>
 
-  <h2>Ask Claude (AI Chat)</h2>
-  <p>When you use the Ask Claude feature, a summary of your financial data (account balances, monthly cash flow totals, and portfolio value — no transaction details or account names unless you include them in your message) is sent to our AI relay service, which forwards it to Anthropic's Claude API to generate a response. This data is:</p>
-  <ul>
-    <li>Transmitted over HTTPS</li>
-    <li>Not stored by us beyond the duration of the request</li>
-    <li>Subject to <a href="https://www.anthropic.com/legal/privacy">Anthropic's Privacy Policy</a></li>
-  </ul>
-  <p>You can disable this feature at any time by not using the Ask Claude button. No AI features run in the background.</p>
+<h2>Data retention</h2>
+<p>All data lives only on your device. Deleting the app removes all data permanently.</p>
 
-  <h2>Live Market Prices</h2>
-  <p>Portfolio and watchlist prices are fetched from Yahoo Finance's public quote API. Your device sends ticker symbols (e.g. "AAPL", "BTC-USD") to retrieve prices. No personal information is included in these requests.</p>
+<h2>Children</h2>
+<p>Ledger is not directed at children under 13 and does not knowingly collect any information from them.</p>
 
-  <h2>Analytics &amp; Tracking</h2>
-  <p>Ledger does not use any analytics SDKs, advertising frameworks, or third-party tracking. We do not track you across apps or websites.</p>
-
-  <h2>Data Deletion</h2>
-  <p>You can delete all your data at any time by deleting the app from your device. To remove iCloud data, go to iPhone Settings → [Your Name] → iCloud → Manage Account Storage → Ledger → Delete Data.</p>
-
-  <h2>Children</h2>
-  <p>Ledger is not directed at children under 13. We do not knowingly collect information from children.</p>
-
-  <h2>Changes</h2>
-  <p>If we make material changes to this policy, we will update the effective date above. Continued use of the app after changes constitutes acceptance.</p>
-
-  <h2>Contact</h2>
-  <p>Questions? Email <a href="mailto:hatchatcha9@gmail.com">hatchatcha9@gmail.com</a></p>
-</div>
+<h2>Contact</h2>
+<p>Questions? Email <a href="mailto:hatchatcha9@gmail.com">hatchatcha9@gmail.com</a>.</p>
 </body>
 </html>

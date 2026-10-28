@@ -37,6 +37,7 @@
         <attribute name="id" attributeType="UUID" usesScalarValueType="NO"/>
         <attribute name="notes" optional="YES" attributeType="String"/>
         <attribute name="splitsJSON" optional="YES" attributeType="String"/>
+        <attribute name="tagsRaw" optional="YES" attributeType="String"/>
         <attribute name="type" attributeType="String" defaultValueString="expense"/>
         <relationship name="account" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Account" inverseName="transactions" inverseEntity="Account"/>
     </entity>

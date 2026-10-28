@@ -15,6 +15,7 @@ extension CDTransaction {
     @NSManaged public var notes:      String?
     @NSManaged public var createdAt:  Date?
     @NSManaged public var splitsJSON: String?
+    @NSManaged public var tagsRaw:    String?
 
     // Inverse relationship back to the owning account.
     @NSManaged public var account: Account?

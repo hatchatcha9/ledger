@@ -2,30 +2,27 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <!-- Ledger stores no personal data outside the user's device.
+         No analytics, no tracking, no third-party SDKs that collect data. -->
     <key>NSPrivacyTracking</key>
     <false/>
+
     <key>NSPrivacyTrackingDomains</key>
     <array/>
+
     <key>NSPrivacyCollectedDataTypes</key>
     <array/>
+
     <key>NSPrivacyAccessedAPITypes</key>
     <array>
-        <!-- UserDefaults: used for app settings (currency, biometric, notifications, API key) -->
+        <!-- @AppStorage / UserDefaults — used for settings (currency, biometric, reminders) -->
         <dict>
             <key>NSPrivacyAccessedAPIType</key>
             <string>NSPrivacyAccessedAPICategoryUserDefaults</string>
             <key>NSPrivacyAccessedAPITypeReasons</key>
             <array>
+                <!-- CA92.1: Access info from the same app that wrote it -->
                 <string>CA92.1</string>
-            </array>
-        </dict>
-        <!-- File timestamp APIs: used by CoreData for last-modified tracking -->
-        <dict>
-            <key>NSPrivacyAccessedAPIType</key>
-            <string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
-            <key>NSPrivacyAccessedAPITypeReasons</key>
-            <array>
-                <string>C617.1</string>
             </array>
         </dict>
     </array>

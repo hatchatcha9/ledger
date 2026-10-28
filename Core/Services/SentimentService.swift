@@ -118,6 +118,11 @@ final class SentimentService: ObservableObject {
 
     func analyzeWithClaude(symbol: String, messages: [String], signalContext: String? = nil) async {
         guard !messages.isEmpty else { return }
+        // Skip if another analysis is already running for this symbol.
+        if isAnalyzing[symbol] == true { return }
+        // Skip the basic analysis (no signal context) if we already have a result —
+        // the richer signal-enriched call from AssetDetailView will upgrade it.
+        if signalContext == nil, sentiment[symbol]?.claudeInsight != nil { return }
         isAnalyzing[symbol] = true
 
         let numbered = messages.prefix(10).enumerated()

@@ -253,7 +253,7 @@ struct SettingsView: View {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withFullDate]
 
-        var lines = ["Date,Account,Category,Type,Amount,Notes"]
+        var lines = ["Date,Account,Category,Type,Amount,Notes,Tags"]
         for tx in transactions {
             let date     = tx.date.map { formatter.string(from: $0) } ?? ""
             let account  = csvEscape(tx.account?.wrappedName ?? "")
@@ -261,7 +261,8 @@ struct SettingsView: View {
             let type     = tx.isExpense ? "Expense" : "Income"
             let amount   = String(format: "%.2f", tx.amount)
             let notes    = csvEscape(tx.wrappedNotes)
-            lines.append("\(date),\(account),\(category),\(type),\(amount),\(notes)")
+            let tags     = csvEscape(tx.wrappedTags.joined(separator: "; "))
+            lines.append("\(date),\(account),\(category),\(type),\(amount),\(notes),\(tags)")
         }
         return lines.joined(separator: "\n")
     }

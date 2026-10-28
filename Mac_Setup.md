@@ -171,17 +171,27 @@ See `LedgerWidget/AppIcon.md` for design guidelines.
 
 ---
 
-## 10. Privacy Policy
+## 10. Privacy Policy (GitHub Pages)
 
-Before submitting, publish a real privacy policy and replace the placeholder in
-`Features/Settings/SettingsView.swift` (line ~139):
+A real privacy policy page is at `docs/privacy.html` and is already linked in
+`SettingsView.swift` as `https://hatchatcha9.github.io/ledger/privacy.html`.
 
-```swift
-if let url = URL(string: "https://example.com/ledger-privacy") {
-```
+To make it live:
 
-The policy should state: all data is stored locally on-device; no data is
-collected, shared, or transmitted; no accounts are required.
+1. Push the repo to GitHub (or your existing `ledger` repo at github.com/hatchatcha9/ledger).
+2. On GitHub → **Settings → Pages** → Source: **Deploy from a branch** → **main / docs**.
+3. The page is live at `https://hatchatcha9.github.io/ledger/privacy.html` in ~1 min.
+4. Verify the link works before submitting to App Store Connect.
+
+## 10a. Privacy Manifest (required since May 2024)
+
+`App/PrivacyInfo.xcprivacy` is already in the source tree. You must add it to the
+**Ledger** target in Xcode so it is bundled with the app:
+
+1. In the Xcode Project Navigator, right-click the `App/` group →
+   **Add Files to "Ledger"…**
+2. Select `App/PrivacyInfo.xcprivacy`. Set **Add to targets: ✅ Ledger**.
+3. Build once to confirm no warnings about missing privacy manifest.
 
 ---
 
@@ -247,7 +257,9 @@ Review typically takes 1–3 days.
 - [ ] LedgerWidget target created and shared files added (Step 8)
 - [ ] App Group `group.ledger` on LedgerWidget target (Step 8)
 - [ ] App icon imported (Step 9)
-- [ ] Privacy policy URL updated in SettingsView.swift (Step 10)
+- [ ] GitHub Pages deployed; privacy policy URL live (Step 10)
+- [ ] `PrivacyInfo.xcprivacy` added to Ledger target (Step 10a)
+- [ ] `Core/Services/Secrets.swift` created from `Secrets.swift.example` (one-time)
 - [ ] Build passes ⌘B with no errors (Step 11)
 - [ ] App Store Connect listing filled in (Step 12)
 - [ ] Screenshots uploaded (Step 12)

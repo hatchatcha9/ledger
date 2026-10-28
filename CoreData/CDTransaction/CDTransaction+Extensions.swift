@@ -43,4 +43,22 @@ extension CDTransaction {
     }
 
     var isSplit: Bool { splitsJSON != nil && !splits.isEmpty }
+
+    // MARK: - Tag support (stored as comma-separated string)
+
+    static let predefinedTags = [
+        "business", "personal", "vacation", "reimbursable",
+        "subscription", "annual", "medical", "tax-deductible"
+    ]
+
+    var wrappedTags: [String] {
+        guard let raw = tagsRaw, !raw.isEmpty else { return [] }
+        return raw.components(separatedBy: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    func setTags(_ tags: [String]) {
+        tagsRaw = tags.isEmpty ? nil : tags.joined(separator: ",")
+    }
 }
