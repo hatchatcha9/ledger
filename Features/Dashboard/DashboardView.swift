@@ -1,4 +1,5 @@
 ﻿import SwiftUI
+import UserNotifications
 import Charts
 
 // MARK: - Local chart-data types
@@ -86,8 +87,10 @@ struct DashboardView: View {
     @AppStorage("velocityDismissedDay") private var velocityDismissedDay = ""
     @State private var drillCategory: TransactionCategory? = nil
     @State private var drillMonth: DateComponents? = nil
-    @State private var showAllTransactions = false
-    @State private var showingSettings     = false
+    @State private var showAllTransactions    = false
+    @State private var showingSettings        = false
+    @State private var showingSubscriptions   = false
+    @State private var showingForecast        = false
 
     // MARK: - Body
 
@@ -128,6 +131,9 @@ struct DashboardView: View {
                         goalCard
                     }
                     fireCard
+                    tradeGoalCard
+                    emergencyFundCard
+                    subscriptionRadarCard
                     netWorthChartCard
                     cashFlowCard
                     forecastCard
@@ -237,11 +243,44 @@ struct DashboardView: View {
             AddEditAccountView()
                 .environment(\.managedObjectContext, ctx)
         }
+        .sheet(isPresented: $showingSubscriptions) {
+            SubscriptionRadarView(subscriptions: SubscriptionRadarService.detect(from: Array(allTransactions)))
+        }
+        .navigationDestination(isPresented: $showingForecast) {
+            CashFlowForecastView(
+                recurringRules: Array(recurringRules),
+                currentBalance: totalBalance,
+                currencyCode:   currencyCode
+            )
+        }
         .onAppear {
             velocityAlerts = SpendingVelocityService.anomalies(from: Array(allTransactions))
             SpendingVelocityService.fireNotifications(for: velocityAlerts)
             BudgetAlertService.checkAndNotify(budgets: Array(budgets),
                                               transactions: Array(allTransactions))
+            // Feature 4 — Thesis change alerts: notify when price drops 20%+ below avg cost
+            let openTrades = journalEntries.filter { $0.isOpen }
+            for trade in openTrades {
+                let sym   = trade.wrappedSymbol
+                let entry = trade.entryPrice
+                guard entry > 0,
+                      let current = prices.prices[sym],
+                      current < entry * 0.80
+                else { continue }
+                let notifID = "thesis-alert-\(sym)-\(Calendar.current.component(.weekOfYear, from: .now))"
+                UNUserNotificationCenter.current().getPendingNotificationRequests { pending in
+                    guard !pending.contains(where: { $0.identifier == notifID }) else { return }
+                    let content = UNMutableNotificationContent()
+                    content.title = "Review your thesis: \(sym)"
+                    let pct = Int(((entry - current) / entry) * 100)
+                    content.body  = "\(sym) is down \(pct)% from your entry (\(current.asCurrency(code: currencyCode)) vs \(entry.asCurrency(code: currencyCode))). Still conviction?"
+                    content.sound = .default
+                    let req = UNNotificationRequest(identifier: notifID,
+                                                   content: content,
+                                                   trigger: nil)
+                    UNUserNotificationCenter.current().add(req, withCompletionHandler: nil)
+                }
+            }
         }
         .task {
             await signalService.fetch(symbols: ["BTC", "ETH", "SOL"])
@@ -309,6 +348,84 @@ struct DashboardView: View {
         if let qs = quantStatus.status {
             lines.append("\nQUANT SYSTEM (LIVE):")
             lines.append(qs.contextString)
+        }
+
+        // Feature 5 — Emergency fund
+        if avgMonthlyExpenses > 0 {
+            lines.append("\nEMERGENCY FUND:")
+            lines.append("  Liquid assets: \(liquidBalance.asCurrency(code: currencyCode))")
+            lines.append("  Avg monthly expenses (6mo): \(avgMonthlyExpenses.asCurrency(code: currencyCode))")
+            lines.append("  Months covered: \(String(format: "%.1f", monthsCovered)) (goal: 6.0)")
+        }
+
+        // Feature 6 — Spending anomaly context (current vs prior 3 months by category)
+        let cal6 = Calendar.current
+        if let threeMonthsAgo = cal6.date(byAdding: .month, value: -3, to: now) {
+            let recent3 = allTransactions.filter {
+                guard let d = $0.date else { return false }
+                return $0.amount < 0 && d >= threeMonthsAgo
+            }
+            var catTotals: [String: Double] = [:]
+            for tx in recent3 {
+                catTotals[tx.transactionCategory.displayName, default: 0] += abs(tx.amount)
+            }
+            if !catTotals.isEmpty {
+                lines.append("\nSPENDING BY CATEGORY (last 3 months):")
+                for (cat, total) in catTotals.sorted(by: { $0.value > $1.value }).prefix(8) {
+                    lines.append("  \(cat): \(total.asCurrency(code: currencyCode))")
+                }
+                // Current month vs prior average
+                let currentCatTotals = allTransactions.filter {
+                    guard let d = $0.date else { return false }
+                    return $0.amount < 0
+                        && cal6.component(.year, from: d) == cal6.component(.year, from: now)
+                        && cal6.component(.month, from: d) == cal6.component(.month, from: now)
+                }.reduce(into: [String: Double]()) { $0[$1.transactionCategory.displayName, default: 0] += abs($1.amount) }
+                let anomalies = currentCatTotals.filter { cat, amt in
+                    let avg3 = (catTotals[cat] ?? 0) / 3
+                    return avg3 > 0 && amt > avg3 * 1.5
+                }
+                if !anomalies.isEmpty {
+                    lines.append("  ANOMALIES this month (>1.5x avg):")
+                    for (cat, amt) in anomalies {
+                        let avg3 = (catTotals[cat] ?? 0) / 3
+                        lines.append("    \(cat): \(amt.asCurrency(code: currencyCode)) vs avg \(avg3.asCurrency(code: currencyCode))/mo")
+                    }
+                }
+            }
+        }
+
+        // Feature 7 — Goal conflict context
+        let openDebts = accounts.filter { $0.accountType == .creditCard || $0.accountType == .loan }
+        let totalDebt = openDebts.reduce(0) { $0 + abs($1.balance) }
+        if totalDebt > 0 {
+            lines.append("\nDEBT vs FI/RE CONFLICT:")
+            lines.append("  Total debt: \(totalDebt.asCurrency(code: currencyCode))")
+            lines.append("  FI/RE target: \(fireNumber.asCurrency(code: currencyCode))")
+            lines.append("  Net investable assets: \((totalBalance - totalDebt).asCurrency(code: currencyCode))")
+            lines.append("  FI/RE gap: \(max(0, fireNumber - totalBalance + totalDebt).asCurrency(code: currencyCode))")
+        }
+
+        // Feature 8 — Trade-to-goal attribution
+        if let qs = quantStatus.status, qs.dailyPnlMain != 0 {
+            let monthlyPaper = qs.dailyPnlMain * 21
+            lines.append("\nTRADE→GOAL ATTRIBUTION (paper):")
+            lines.append("  Bot daily P&L: \(qs.dailyPnlMain.asCurrency(code: currencyCode))")
+            lines.append("  Est. monthly paper: \(monthlyPaper.asCurrency(code: currencyCode))")
+            if currentMonthSavings > 0 {
+                let pct = (monthlyPaper / currentMonthSavings) * 100
+                lines.append("  As % of monthly savings: \(String(format: "%.1f", pct))%")
+            }
+        }
+
+        // Subscription radar
+        let subs = SubscriptionRadarService.detect(from: Array(allTransactions))
+        if !subs.isEmpty {
+            let annual = subs.reduce(0) { $0 + $1.annualCost }
+            lines.append("\nSUBSCRIPTIONS: \(subs.count) detected, \(annual.asCurrency(code: currencyCode))/year")
+            for s in subs.prefix(5) {
+                lines.append("  \(s.name): \(s.avgAmount.asCurrency(code: currencyCode))/\(s.frequency.lowercased())")
+            }
         }
 
         return lines.joined(separator: "\n")
@@ -935,6 +1052,22 @@ struct DashboardView: View {
                     forecastPill(label: "90 days",  amount: projectedBalance(daysFromNow: 90))
                 }
                 .padding(.top, Theme.s4)
+
+                Button {
+                    HapticService.impact(.light)
+                    showingForecast = true
+                } label: {
+                    HStack {
+                        Text("View Full Forecast")
+                            .font(.subheadline.bold())
+                            .foregroundStyle(Color.ledgerAccent)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold())
+                            .foregroundStyle(Color.ledgerAccent.opacity(0.7))
+                    }
+                }
+                .buttonStyle(.plain)
             }
             .padding(Theme.s16)
             .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
@@ -956,6 +1089,211 @@ struct DashboardView: View {
                 .foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+    }
+
+    // MARK: - Emergency Fund Meter
+
+    private var liquidBalance: Double {
+        accounts
+            .filter { [.checking, .savings, .cash].contains($0.accountType) }
+            .reduce(0) { $0 + prices.usdValue(of: $1.balance, currency: $1.wrappedCurrency) }
+    }
+
+    private var avgMonthlyExpenses: Double {
+        let cal = Calendar.current
+        guard let sixMonthsAgo = cal.date(byAdding: .month, value: -6, to: .now) else { return 0 }
+        let recent = allTransactions.filter { ($0.date ?? .distantPast) >= sixMonthsAgo && $0.amount < 0 }
+        let total  = recent.reduce(0) { $0 + abs($1.amount) }
+        return total / 6
+    }
+
+    private var monthsCovered: Double {
+        guard avgMonthlyExpenses > 0 else { return 0 }
+        return liquidBalance / avgMonthlyExpenses
+    }
+
+    @ViewBuilder
+    private var emergencyFundCard: some View {
+        if avgMonthlyExpenses > 0 {
+            let covered  = monthsCovered
+            let ratio    = min(covered / 6.0, 1.0)
+            let color: Color = covered >= 6 ? .ledgerPositive : covered >= 3 ? .orange : .ledgerNegative
+            let label:  String = covered >= 6 ? "Fully funded" : covered >= 3 ? "Getting there" : "Build this up"
+
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                Label("Emergency Fund", systemImage: "umbrella.fill")
+                    .font(.subheadline.bold())
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(String(format: "%.1f", covered))
+                        .font(Theme.monoTitle2())
+                        .foregroundStyle(color)
+                    Text("months covered")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text(label)
+                        .font(.caption.bold())
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(color.opacity(0.12), in: Capsule())
+                        .foregroundStyle(color)
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4).fill(Color(.systemFill)).frame(height: 8)
+                        RoundedRectangle(cornerRadius: 4).fill(color)
+                            .frame(width: geo.size.width * ratio, height: 8)
+                            .animation(.spring(response: 0.8, dampingFraction: 0.8), value: ratio)
+                    }
+                }
+                .frame(height: 8)
+
+                HStack {
+                    Text(liquidBalance.asCurrency(code: currencyCode) + " liquid")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Text("of " + (avgMonthlyExpenses * 6).asCurrency(code: currencyCode) + " goal (6 mo.)")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        }
+    }
+
+    // MARK: - Trade-to-Goal Attribution
+
+    @ViewBuilder
+    private var tradeGoalCard: some View {
+        let monthlyGap: Double = {
+            guard fireNumber > totalBalance, currentMonthSavings > 0 else { return 0 }
+            return (fireNumber - totalBalance) / max(1, Double(Int((fireNumber - totalBalance) / currentMonthSavings)))
+        }()
+        let dailyPnL = quantStatus.status?.dailyPnlMain ?? 0
+        let monthlyPaper = dailyPnL * 21  // ~21 trading days
+        let monthsAttributed = monthlyGap > 0 ? monthlyPaper / monthlyGap : 0
+
+        if fireNumber > 0, dailyPnL != 0 {
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                HStack(spacing: Theme.s8) {
+                    Label("Bot → FI/RE", systemImage: "bolt.heart.fill")
+                        .font(.subheadline.bold())
+                    Spacer()
+                    Text("PAPER")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.orange, in: Capsule())
+                }
+
+                HStack(spacing: 0) {
+                    VStack(spacing: 2) {
+                        Text("Daily P&L")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                        let sign = dailyPnL >= 0 ? "+" : ""
+                        Text("\(sign)\(dailyPnL.asCurrency(code: currencyCode))")
+                            .font(Theme.monoCaption().bold())
+                            .foregroundStyle(Color.changeColor(for: dailyPnL))
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    Divider().frame(height: 32)
+
+                    VStack(spacing: 2) {
+                        Text("Est. Monthly")
+                            .font(.caption2).foregroundStyle(.tertiary)
+                        let sign = monthlyPaper >= 0 ? "+" : ""
+                        Text("\(sign)\(monthlyPaper.asCurrency(code: currencyCode))")
+                            .font(Theme.monoCaption().bold())
+                            .foregroundStyle(Color.changeColor(for: monthlyPaper))
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    if monthsAttributed > 0 {
+                        Divider().frame(height: 32)
+                        VStack(spacing: 2) {
+                            Text("FI/RE Boost")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                            Text(String(format: "+%.1f mo.", monthsAttributed))
+                                .font(Theme.monoCaption().bold())
+                                .foregroundStyle(.ledgerPositive)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+                .padding(.vertical, Theme.s4)
+                .background(Color(.secondarySystemFill).opacity(0.5),
+                            in: RoundedRectangle(cornerRadius: Theme.radiusS))
+
+                Text("If paper results transferred to savings")
+                    .font(.caption).foregroundStyle(.tertiary)
+            }
+            .padding(Theme.s16)
+            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+            .overlay(RoundedRectangle(cornerRadius: Theme.radiusM)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 1))
+        }
+    }
+
+    // MARK: - Subscription Radar Summary Card
+
+    @ViewBuilder
+    private var subscriptionRadarCard: some View {
+        let subs = SubscriptionRadarService.detect(from: Array(allTransactions))
+        if !subs.isEmpty {
+            let annual    = subs.reduce(0) { $0 + $1.annualCost }
+            let increases = subs.filter { $0.priceChange ?? 0 > 0 }.count
+
+            Button {
+                HapticService.impact(.light)
+                showingSubscriptions = true
+            } label: {
+                VStack(alignment: .leading, spacing: Theme.s12) {
+                    HStack {
+                        Label("Subscription Radar", systemImage: "repeat.circle.fill")
+                            .font(.subheadline.bold())
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.caption.bold()).foregroundStyle(.tertiary)
+                    }
+
+                    HStack(spacing: 0) {
+                        VStack(spacing: 2) {
+                            Text("Detected")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                            Text("\(subs.count)")
+                                .font(.title3.bold()).foregroundStyle(.primary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        Divider().frame(height: 32)
+                        VStack(spacing: 2) {
+                            Text("Annual Cost")
+                                .font(.caption2).foregroundStyle(.tertiary)
+                            Text(annual.asCurrency(code: currencyCode))
+                                .font(Theme.monoBody().bold()).foregroundStyle(.primary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        if increases > 0 {
+                            Divider().frame(height: 32)
+                            VStack(spacing: 2) {
+                                Text("Price ↑")
+                                    .font(.caption2).foregroundStyle(.tertiary)
+                                Text("\(increases)")
+                                    .font(.title3.bold()).foregroundStyle(.ledgerNegative)
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                    }
+                    .padding(.vertical, Theme.s4)
+                    .background(Color(.secondarySystemFill).opacity(0.5),
+                                in: RoundedRectangle(cornerRadius: Theme.radiusS))
+                }
+                .padding(Theme.s16)
+                .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+            }
+            .buttonStyle(.plain)
+        }
     }
 
     // MARK: - Helpers

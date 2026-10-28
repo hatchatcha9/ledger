@@ -170,6 +170,17 @@ struct PortfolioView: View {
                     }
                 }
 
+                // MARK: Tax Summary
+                Section {
+                    NavigationLink {
+                        TaxSummaryView()
+                            .environment(\.managedObjectContext,
+                                         PersistenceController.shared.container.viewContext)
+                    } label: {
+                        Label("Tax Summary", systemImage: "doc.text.magnifyingglass")
+                    }
+                }
+
                 // MARK: Watchlist
                 Section {
                     if watchlist.isEmpty {
