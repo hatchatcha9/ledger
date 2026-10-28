@@ -6,34 +6,51 @@ struct OnboardingView: View {
 
     private let pages: [OnboardingPage] = [
         .init(
-            icon: "chart.line.uptrend.xyaxis",
-            color: Color.ledgerAccent,
-            title: "Net Worth at a Glance",
-            body: "Dashboard shows your total balance, today's P&L, and a historical net worth chart with spending breakdown."
+            icon:     "hand.wave.fill",
+            color:    Color.ledgerAccent,
+            step:     nil,
+            title:    "Welcome to Ledger",
+            body:     "Your finances, owned by you. No subscription. No cloud. Your data stays on your device.\n\nHere's exactly what to do first."
         ),
         .init(
-            icon: "creditcard.fill",
-            color: Color(red: 0.4, green: 0.6, blue: 1.0),
-            title: "Track Every Account",
-            body: "Add bank accounts, brokerages, and crypto wallets. Log transactions to keep balances accurate."
+            icon:     "creditcard.fill",
+            color:    Color(red: 0.4, green: 0.6, blue: 1.0),
+            step:     "Step 1 of 3",
+            title:    "Add an Account",
+            body:     "Tap the Accounts tab → + button. Add your checking account, savings, or brokerage. Give it a starting balance.\n\nDon't worry about being exact — you can adjust it anytime."
         ),
         .init(
-            icon: "chart.pie.fill",
-            color: Color.ledgerPositive,
-            title: "Live Portfolio Prices",
-            body: "Stocks, ETFs, and crypto pull live prices from Yahoo Finance so you always see your real portfolio value."
+            icon:     "arrow.down.doc.fill",
+            color:    Color.ledgerPositive,
+            step:     "Step 2 of 3",
+            title:    "Import Your Transactions",
+            body:     "Open any account → tap ··· → Import CSV. Export a statement from your bank's website and drop it in.\n\nWorks with Chase, Bank of America, Wells Fargo, Citi, and most standard exports. Duplicates are caught automatically."
         ),
         .init(
-            icon: "book.closed.fill",
-            color: Color(red: 0.8, green: 0.5, blue: 0.2),
-            title: "Trade Journal",
-            body: "Log every trade with entry and exit prices, conviction rating, and strategy tags. Track your win rate over time."
+            icon:     "chart.line.uptrend.xyaxis",
+            color:    Color(red: 0.8, green: 0.5, blue: 0.2),
+            step:     "Step 3 of 3",
+            title:    "Your Dashboard Unlocks",
+            body:     "After a few months of data you'll see your FI/RE progress, spending velocity alerts, emergency fund meter, and an AI analysis of your actual finances.\n\nThe more data you add, the smarter it gets."
         ),
     ]
 
     var body: some View {
         VStack(spacing: 0) {
-            // MARK: Page content
+            // Skip button
+            HStack {
+                Spacer()
+                Button("Skip") {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    isPresented = false
+                }
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, Theme.s24)
+                .padding(.top, Theme.s16)
+            }
+
+            // Page content
             TabView(selection: $page) {
                 ForEach(Array(pages.enumerated()), id: \.offset) { index, p in
                     pageCard(p)
@@ -43,7 +60,7 @@ struct OnboardingView: View {
             .tabViewStyle(.page(indexDisplayMode: .never))
             .frame(maxHeight: .infinity)
 
-            // MARK: Page indicators + button
+            // Page indicators + button
             VStack(spacing: Theme.s24) {
                 HStack(spacing: 8) {
                     ForEach(0..<pages.count, id: \.self) { i in
@@ -55,7 +72,7 @@ struct OnboardingView: View {
                 }
 
                 Button(action: advance) {
-                    Text(page == pages.count - 1 ? "Get Started" : "Next")
+                    Text(page == pages.count - 1 ? "Let's Go" : "Next")
                         .fontWeight(.semibold)
                         .frame(maxWidth: .infinity)
                 }
@@ -70,7 +87,7 @@ struct OnboardingView: View {
 
     @ViewBuilder
     private func pageCard(_ p: OnboardingPage) -> some View {
-        VStack(spacing: Theme.s32) {
+        VStack(spacing: Theme.s24) {
             Spacer()
 
             ZStack {
@@ -83,14 +100,24 @@ struct OnboardingView: View {
             }
 
             VStack(spacing: Theme.s12) {
+                if let step = p.step {
+                    Text(step)
+                        .font(.caption.bold())
+                        .foregroundStyle(p.color)
+                        .padding(.horizontal, 10).padding(.vertical, 4)
+                        .background(p.color.opacity(0.12), in: Capsule())
+                }
+
                 Text(p.title)
                     .font(.title2.bold())
                     .multilineTextAlignment(.center)
+
                 Text(p.body)
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .lineSpacing(3)
             }
             .padding(.horizontal, Theme.s32)
 
@@ -113,6 +140,7 @@ struct OnboardingView: View {
 private struct OnboardingPage {
     let icon:  String
     let color: Color
+    let step:  String?
     let title: String
     let body:  String
 }

@@ -18,6 +18,7 @@ struct SettingsView: View {
     @AppStorage("netWorthGoalEnabled")   private var goalEnabled           = false
     @AppStorage("netWorthGoalAmount")    private var goalAmount: Double     = 0
     @AppStorage("fireMultiplier")        private var fireMultiplier: Double = 25
+    @AppStorage("fireExpectedReturn")    private var fireExpectedReturn: Double = 7.0
     @State private var goalAmountText  = ""
     @FocusState private var goalFocused: Bool
 
@@ -99,10 +100,19 @@ struct SettingsView: View {
                         Text("30× — Conservative").tag(30.0)
                         Text("33× — Very Safe (Trinity)").tag(33.0)
                     }
+                    HStack {
+                        Text("Expected Annual Return")
+                        Spacer()
+                        Text("\(String(format: "%.1f", fireExpectedReturn))%")
+                            .font(Theme.monoBody())
+                            .foregroundStyle(.secondary)
+                    }
+                    Slider(value: $fireExpectedReturn, in: 0...15, step: 0.5)
+                        .tint(Color.ledgerAccent)
                 } header: {
                     Text("FI/RE Target")
                 } footer: {
-                    Text("Your FI/RE number = annual expenses × multiplier. 25× is the classic 4% rule.")
+                    Text("Your FI/RE number = annual expenses × multiplier. 25× is the classic 4% rule. The projected retirement date uses compound growth at your expected return rate.")
                 }
 
                 // MARK: Security

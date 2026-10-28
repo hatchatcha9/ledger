@@ -377,20 +377,51 @@ struct AccountDetailView: View {
     }
 
     private var emptyTransactionsRow: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "arrow.left.arrow.right.circle")
-                .font(.title2)
-                .foregroundStyle(.tertiary)
-            Text("No transactions yet")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Button("Add First Transaction") {
-                showingAddTransaction = true
+        VStack(spacing: Theme.s16) {
+            Image(systemName: "arrow.down.doc.fill")
+                .font(.title)
+                .foregroundStyle(Color.ledgerAccent.opacity(0.6))
+
+            VStack(spacing: 4) {
+                Text("No transactions yet")
+                    .font(.subheadline.bold())
+                Text("Import a CSV from your bank or add one manually.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
-            .font(.subheadline)
+
+            HStack(spacing: Theme.s12) {
+                Button {
+                    showingCSVImport = true
+                } label: {
+                    Label("Import CSV", systemImage: "arrow.down.doc")
+                        .font(.subheadline.bold())
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(Color.ledgerAccent)
+                .controlSize(.regular)
+
+                Button {
+                    showingAddTransaction = true
+                } label: {
+                    Label("Add Manual", systemImage: "plus")
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .tint(Color.ledgerAccent)
+                .controlSize(.regular)
+            }
+
+            Text("Supports Chase, Bank of America, Wells Fargo, Citi, and most standard bank exports.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+                .multilineTextAlignment(.center)
         }
+        .padding(.vertical, Theme.s16)
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 20)
     }
 
     private func statPill(label: String, value: String) -> some View {

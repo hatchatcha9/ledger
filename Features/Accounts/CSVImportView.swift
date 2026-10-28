@@ -12,6 +12,7 @@ struct CSVImportView: View {
 
     private enum ImportState {
         case idle
+        case mapping(rawText: String, headers: [String])
         case parsed(CSVImportResult)
         case error(String)
         case done(Int)
@@ -20,6 +21,9 @@ struct CSVImportView: View {
     @State private var importState:      ImportState = .idle
     @State private var showingPicker     = false
     @State private var isImporting       = false
+    @State private var mapDate:   Int = 0
+    @State private var mapAmount: Int = 1
+    @State private var mapNotes:  Int = 2
 
     // MARK: - Body
 
@@ -29,6 +33,8 @@ struct CSVImportView: View {
                 switch importState {
                 case .idle:
                     idleView
+                case .mapping(let raw, let headers):
+                    mappingView(rawText: raw, headers: headers)
                 case .parsed(let result):
                     previewView(result: result)
                 case .error(let msg):
@@ -103,6 +109,82 @@ struct CSVImportView: View {
             .padding(.horizontal, Theme.s16)
 
             Spacer()
+        }
+    }
+
+    // MARK: - Column mapping view (shown when header auto-detection fails)
+
+    private func mappingView(rawText: String, headers: [String]) -> some View {
+        Form {
+            Section {
+                Text("We couldn't automatically detect your CSV format. Tell us which column is which and we'll handle the rest.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Column Assignments") {
+                Picker("Date column", selection: $mapDate) {
+                    ForEach(Array(headers.enumerated()), id: \.offset) { i, h in
+                        Text(h.isEmpty ? "Column \(i+1)" : h).tag(i)
+                    }
+                }
+                Picker("Amount column", selection: $mapAmount) {
+                    ForEach(Array(headers.enumerated()), id: \.offset) { i, h in
+                        Text(h.isEmpty ? "Column \(i+1)" : h).tag(i)
+                    }
+                }
+                Picker("Description column", selection: $mapNotes) {
+                    ForEach(Array(headers.enumerated()), id: \.offset) { i, h in
+                        Text(h.isEmpty ? "Column \(i+1)" : h).tag(i)
+                    }
+                }
+            } footer: {
+                Text("Negative amounts = expenses. Positive = income.")
+            }
+
+            Section {
+                Button {
+                    applyManualMapping(rawText: rawText)
+                } label: {
+                    Label("Parse with These Columns", systemImage: "checkmark.circle.fill")
+                        .frame(maxWidth: .infinity)
+                        .fontWeight(.semibold)
+                }
+                .listRowBackground(Color.ledgerAccent)
+                .foregroundStyle(.white)
+            }
+
+            Section {
+                Button { importState = .idle } label: {
+                    Label("Choose Different File", systemImage: "folder")
+                        .foregroundStyle(Color.ledgerAccent)
+                }
+            }
+        }
+    }
+
+    private func applyManualMapping(rawText: String) {
+        let lines = CSVImportService.splitLines(rawText)
+        guard lines.count > 1 else {
+            importState = .error("Not enough rows to parse.")
+            return
+        }
+        var parsed: [ParsedRow] = []
+        var unparsed = 0
+        for line in lines.dropFirst() {
+            let fields = CSVImportService.parseFields(line)
+            guard mapDate < fields.count, mapAmount < fields.count, mapNotes < fields.count else { unparsed += 1; continue }
+            guard let date   = CSVImportService.parseDate(fields[mapDate]),
+                  let amount = CSVImportService.parseAmount(fields[mapAmount])
+            else { unparsed += 1; continue }
+            parsed.append(ParsedRow(date: date, notes: fields[mapNotes].trimmingCharacters(in: .whitespaces), amount: amount))
+        }
+        if parsed.isEmpty {
+            importState = .error("Couldn't parse any rows with those column assignments. Check the column numbers and try again.")
+        } else {
+            let result = CSVImportResult(rows: parsed, unparsedCount: unparsed)
+            HapticService.impact(.soft)
+            importState = .parsed(result)
         }
     }
 
@@ -254,9 +336,20 @@ struct CSVImportView: View {
                 return
             }
 
+            let lines = CSVImportService.splitLines(text)
+            // Try auto-detection first; if headers are unrecognised, show column mapper
             let parsed = CSVImportService.parse(text, existingTransactions: account.transactionsArray)
 
-            if parsed.rows.isEmpty {
+            if parsed.rows.isEmpty && lines.count > 1 {
+                // Auto-detection failed — show column mapping UI
+                let headers = CSVImportService.parseFields(lines[0])
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+                mapDate   = 0
+                mapAmount = min(1, headers.count - 1)
+                mapNotes  = min(2, headers.count - 1)
+                HapticService.impact(.soft)
+                importState = .mapping(rawText: text, headers: headers)
+            } else if parsed.rows.isEmpty {
                 importState = .error("No transactions found. Make sure this is a CSV statement exported from your bank.")
             } else {
                 HapticService.impact(.soft)

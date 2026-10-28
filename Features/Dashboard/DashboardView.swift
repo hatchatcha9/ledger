@@ -80,6 +80,7 @@ struct DashboardView: View {
     @AppStorage("netWorthGoalEnabled")  private var goalEnabled   = false
     @AppStorage("netWorthGoalAmount")   private var goalAmount: Double = 0
     @AppStorage("fireMultiplier")       private var fireMultiplier: Double = 25
+    @AppStorage("fireExpectedReturn")   private var fireExpectedReturn: Double = 7.0
 
     @StateObject private var chatVM    = ChatViewModel()
     @State private var chatButtonPulse = false
@@ -98,8 +99,8 @@ struct DashboardView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: Theme.s16) {
-                    if accounts.isEmpty {
-                        emptyStateCard
+                    if accounts.isEmpty || allTransactions.isEmpty {
+                        startHereCard
                     }
 
                     HStack(spacing: Theme.s12) {
@@ -1611,9 +1612,18 @@ struct DashboardView: View {
     private var fireProgress: Double { fireNumber > 0 ? max(0, min(totalBalance / fireNumber, 1.0)) : 0 }
 
     private var projectedFIREDate: Date? {
-        guard fireNumber > totalBalance, currentMonthSavings > 0 else { return nil }
-        let months = Int((fireNumber - totalBalance) / currentMonthSavings)
-        guard months > 0 else { return nil }
+        guard fireNumber > totalBalance else { return nil }
+        let monthlyRate = pow(1.0 + fireExpectedReturn / 100.0, 1.0 / 12.0) - 1.0
+        guard currentMonthSavings > 0 || (monthlyRate > 0 && totalBalance > 0) else { return nil }
+        // Month-by-month compound growth simulation (handles all edge cases cleanly)
+        var balance = totalBalance
+        var months  = 0
+        let cap     = 600   // 50-year cap — shows nil rather than a meaningless date
+        while balance < fireNumber && months < cap {
+            balance = balance * (1.0 + monthlyRate) + currentMonthSavings
+            months += 1
+        }
+        guard months > 0, months < cap else { return nil }
         return Calendar.current.date(byAdding: .month, value: months, to: .now)
     }
 
@@ -1662,7 +1672,8 @@ struct DashboardView: View {
                     Text("Financially independent!")
                         .font(.caption).foregroundStyle(.ledgerPositive)
                 } else if let date = projectedFIREDate {
-                    Text("At current savings rate · est. \(date.formatted(.dateTime.month(.abbreviated).year()))")
+                    let retStr  = String(format: "%.1f", fireExpectedReturn)
+                    Text("Est. \(date.formatted(.dateTime.month(.abbreviated).year())) · \(retStr)% return + \(currentMonthSavings.asCurrency(code: currencyCode))/mo savings")
                         .font(.caption).foregroundStyle(.secondary)
                 } else {
                     Text("Add more months of data for a projection")
@@ -1690,33 +1701,138 @@ struct DashboardView: View {
         }
     }
 
-    // MARK: - Empty state card (shown when no accounts exist)
+    // MARK: - Empty state / start-here card
 
-    private var emptyStateCard: some View {
-        Button { showingAddAccount = true } label: {
-            HStack(spacing: Theme.s16) {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 36))
+    private var startHereCard: some View {
+        let hasAccounts = !accounts.isEmpty
+        let hasTxs      = !allTransactions.isEmpty
+        return VStack(alignment: .leading, spacing: Theme.s16) {
+            HStack {
+                Label("Start Here", systemImage: "arrow.right.circle.fill")
+                    .font(.subheadline.bold())
                     .foregroundStyle(Color.ledgerAccent)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Add your first account")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                    Text("Track checking, savings, investments, and crypto in one place.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                }
                 Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.caption.bold())
+                Text("\(hasAccounts ? (hasTxs ? 2 : 1) : 0)/3 done")
+                    .font(.caption)
                     .foregroundStyle(.tertiary)
             }
-            .padding(Theme.s16)
-            .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                startStep(number: "1", icon: "creditcard.fill",
+                          title: "Add an account",
+                          subtitle: "Checking, savings, brokerage, or crypto",
+                          done: hasAccounts,
+                          action: hasAccounts ? nil : { showingAddAccount = true })
+
+                Divider()
+
+                startStep(number: "2", icon: "arrow.down.doc.fill",
+                          title: "Import your bank CSV",
+                          subtitle: "Open any account → ··· → Import CSV. Supports Chase, BofA, Wells Fargo, Citi, and most banks.",
+                          done: hasTxs,
+                          action: nil)
+
+                Divider()
+
+                startStep(number: "3", icon: "chart.line.uptrend.xyaxis",
+                          title: "Dashboard unlocks",
+                          subtitle: "FI/RE meter, spending velocity alerts, AI insights — all appear automatically as data builds",
+                          done: false,
+                          action: nil)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(Theme.s16)
+        .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusM)
+            .stroke(Color.ledgerAccent.opacity(0.25), lineWidth: 1))
+    }
+
+    private var emptyStateCard: some View {
+        VStack(alignment: .leading, spacing: Theme.s16) {
+            HStack {
+                Label("Start Here", systemImage: "arrow.right.circle.fill")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.ledgerAccent)
+                Spacer()
+                Text("3 steps")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            VStack(alignment: .leading, spacing: Theme.s12) {
+                startStep(number: "1", icon: "creditcard.fill",
+                          title: "Add an account",
+                          subtitle: "Checking, savings, brokerage, or crypto",
+                          done: false,
+                          action: { showingAddAccount = true })
+
+                Divider()
+
+                startStep(number: "2", icon: "arrow.down.doc.fill",
+                          title: "Import your bank CSV",
+                          subtitle: "Open the account → ··· → Import CSV",
+                          done: false,
+                          action: nil)
+
+                Divider()
+
+                startStep(number: "3", icon: "chart.line.uptrend.xyaxis",
+                          title: "Watch your dashboard unlock",
+                          subtitle: "FI/RE meter, spending alerts, and AI insights appear after a few months of data",
+                          done: false,
+                          action: nil)
+            }
+        }
+        .padding(Theme.s16)
+        .background(Color.ledgerSurface, in: RoundedRectangle(cornerRadius: Theme.radiusM))
+        .overlay(RoundedRectangle(cornerRadius: Theme.radiusM)
+            .stroke(Color.ledgerAccent.opacity(0.25), lineWidth: 1))
+    }
+
+    @ViewBuilder
+    private func startStep(number: String, icon: String, title: String,
+                           subtitle: String, done: Bool, action: (() -> Void)?) -> some View {
+        let row = HStack(spacing: Theme.s12) {
+            ZStack {
+                Circle()
+                    .fill(done ? Color.ledgerPositive.opacity(0.15) : Color.ledgerAccent.opacity(0.12))
+                    .frame(width: 36, height: 36)
+                if done {
+                    Image(systemName: "checkmark")
+                        .font(.caption.bold())
+                        .foregroundStyle(.ledgerPositive)
+                } else {
+                    Image(systemName: icon)
+                        .font(.caption)
+                        .foregroundStyle(Color.ledgerAccent)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.subheadline.bold())
+                    .foregroundStyle(done ? .secondary : .primary)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer()
+
+            if let action {
+                Image(systemName: "chevron.right")
+                    .font(.caption.bold())
+                    .foregroundStyle(.tertiaryLabel)
+            }
+        }
+
+        if let action {
+            Button(action: action) { row }
+                .buttonStyle(.plain)
+        } else {
+            row
+        }
     }
 
     // MARK: - Month label helper for drill-through
